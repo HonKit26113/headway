@@ -1,9 +1,9 @@
 # Headway: Transit Housing Scorer
 ## Multi-Role Claude.md for StormHacks 2026
 
-**Project Goal:** A neighbourhood transit score tool for students hunting off-campus housing. Query an address or explore a heatmap. Score shows commute time, frequency, late-night service, and walking distance to campus.
+**Project Goal:** A neighbourhood transit score tool for students hunting off-campus housing. Query an address ~~or explore a heatmap~~. Score shows commute time, frequency, late-night service, and walking distance to campus.
 
-**Tech Stack:** Python backend (FastAPI), React frontend, MapLibre GL JS, H3 grid (res 8), TransLink GTFS static data, deployed on Railway.
+**Tech Stack:** Python backend (FastAPI), React frontend, MapLibre GL JS, ~~H3 grid (res 8)~~ (cut — Windows build issue), TransLink GTFS static data, deployed on Railway.
 
 **Design System:** Black (#0B0B0C), Orange (#FF5A2E), Gray (#8E8C87). Fonts: **Instrument Serif** (headers), **Geist** (body, 400/500/600).
 
@@ -13,13 +13,24 @@
 
 ---
 
+> ## ⚠️ SCOPE CUT: Heatmap is OUT
+> **Real reason:** The H3 library fails to build on Windows (CMake toolchain issue). Already pulled from `backend/requirements.txt`; `/api/heatmap` and the heatmap cache stub have been removed from `backend/`.
+>
+> **Why it's fine to cut:** The heatmap was a visualization layer on top of the core feature (search → score + 4 factors). That core is unaffected and is a complete demo on its own.
+>
+> **If a teammate finds slack time:** the lowest-risk path back in is precompute — BE2 generates a static GeoJSON grid of scores at startup (no H3 needed), FE renders it as a layer. Costs ~2h. PostGIS or fighting the H3 Windows build are not worth it in a 24h window.
+>
+> Sections below that reference the heatmap (marked ~~struck through~~) describe the original vision and are kept for context — they are **not being built**.
+
+---
+
 ## PICK YOUR ROLE
 
 **Which role are you?** Jump to your section:
 
 | Role | What You Build | Section | Time | Commits |
 |------|---|---|---|---|
-| **BE1** (Scoring / Geospatial) | Weighted scoring, H3 heatmap, `/api/score`, `/api/heatmap` | [Backend: Scoring & Heatmap](#backend-scoring--heatmap) | ~14h | 8–12 |
+| **BE1** (Scoring / Geospatial) | Weighted scoring, ~~H3 heatmap~~, `/api/score`, ~~`/api/heatmap`~~ (cut) | [Backend: Scoring & Heatmap](#backend-scoring--heatmap) | ~14h | 8–12 |
 | **BE2** (GTFS / Data) | Load TransLink GTFS, parse routes, calculate frequency, geocode | [Backend: GTFS & Data](#backend-gtfs--data) | ~11h | 6–10 |
 | **FE** (Map UI) | MapLibre map, search bar, score panel, campus picker, Tailwind styling | [Frontend: Map & UI](#frontend-map--ui) | ~13h | 10–15 |
 | **GEN** (Landing / QA) | Landing page, demo video, Devpost, scope cuts, QA testing | [Frontend: Landing & Demo](#frontend-landing--demo) | 5h code + 19h management | 3–5 |
@@ -194,7 +205,7 @@ headway/
 
 ---
 
-## Backend: Scoring & Heatmap
+## Backend: Scoring & ~~Heatmap~~ (heatmap cut — see scope cut notice above)
 
 [← Back to Role Picker](#pick-your-role) | [BE2 (GTFS & Data)](#backend-gtfs--data) | [FE (Map & UI)](#frontend-map--ui) | [GEN (Landing & Demo)](#frontend-landing--demo)
 

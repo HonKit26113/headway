@@ -8,6 +8,12 @@ A neighbourhood transit scorer for students hunting off-campus housing. Get a 0-
 
 ---
 
+## Known Limitations
+
+**Heatmap is cut from scope.** The H3 library fails to build on Windows (CMake toolchain issue), and we pulled it from `requirements.txt` rather than burn hours fighting it. The core product — search an address, get a score + 4 factors — doesn't depend on it. See `headway-claude.md` for the full reasoning and the scope-cut log.
+
+---
+
 ## Setup
 
 ### Backend
@@ -35,7 +41,7 @@ npm run dev
 
 ## Tech Stack
 
-- **Backend:** FastAPI, Python 3.11, H3, GTFS data
+- **Backend:** FastAPI, Python 3.11, ~~H3~~ (cut — Windows build issue), GTFS data
 - **Frontend:** React, Vite, MapLibre GL, Tailwind CSS
 - **Deployment:** Railway
 
