@@ -10,7 +10,9 @@ const MOCK_RESULT = {
   ],
 }
 
-export default function ScorePanel({ result = MOCK_RESULT, isSample = true }) {
+export default function ScorePanel({ result, isSample = true }) {
+  const data = result ?? MOCK_RESULT
+
   return (
     <aside
       className="w-[400px] h-full flex flex-col gap-6 p-8 overflow-y-auto"
@@ -35,22 +37,24 @@ export default function ScorePanel({ result = MOCK_RESULT, isSample = true }) {
 
       <div className="flex flex-col gap-1.5">
         <span style={{ fontFamily: 'Geist', fontWeight: 500, fontSize: '15px', color: '#edebe6' }}>
-          {result.address}
+          {data.address}
         </span>
-        <span style={{ fontFamily: 'Geist', fontWeight: 400, fontSize: '12px', color: '#a9a69f' }}>
-          {result.city}
-        </span>
+        {data.city && (
+          <span style={{ fontFamily: 'Geist', fontWeight: 400, fontSize: '12px', color: '#a9a69f' }}>
+            {data.city}
+          </span>
+        )}
       </div>
 
       <div
         className="pb-6"
         style={{ borderBottom: '1px solid #1f1f22', fontFamily: 'Instrument Serif', fontSize: '72px', lineHeight: '72px', color: '#ff5a2e' }}
       >
-        {result.score.toFixed(1)}
+        {data.score.toFixed(1)}
       </div>
 
       <div className="flex flex-col">
-        {result.factors.map((factor) => (
+        {data.factors.map((factor) => (
           <div
             key={factor.label}
             className="flex items-center justify-between py-3"
