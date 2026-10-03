@@ -1,20 +1,25 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { fetchScore } from '../lib/api'
+import { useGeocode } from '../hooks/useGeocode'
 
-export default function SearchBar({ campus, onResult }) {
+export default function SearchBar({ campus, onResult, onLocationSelect }) {
   const [address, setAddress] = useState('')
+  const [open, setOpen] = useState(false)
+  const [highlighted, setHighlighted] = useState(-1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const blurTimeout = useRef(null)
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!address.trim() || loading) return
+  const suggestions = useGeocode(open ? address : '')
 
+  const runScore = async (addressText, location) => {
     setLoading(true)
     setError(null)
+    if (location) onLocationSelect?.(location)
+
     try {
-      const data = await fetchScore(address, campus)
-      onResult({ ...data, address, isSample: false })
+      const data = await fetchScore(addressText, campus)
+      onResult({ ...data, address: addressText, isSample: false })
     } catch (err) {
       setError('Backend not ready yet — scoring API is still being built.')
     } finally {
@@ -22,24 +27,91 @@ export default function SearchBar({ campus, onResult }) {
     }
   }
 
+  const handleSelect = (suggestion) => {
+    setAddress(suggestion.label)
+    setOpen(false)
+    setHighlighted(-1)
+    runScore(suggestion.label, { lat: suggestion.lat, lon: suggestion.lon })
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!address.trim() || loading) return
+    setOpen(false)
+    runScore(address, null)
+  }
+
+  const handleKeyDown = (e) => {
+    if (!open || suggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlighted((i) => Math.min(i + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlighted((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && highlighted >= 0) {
+      e.preventDefault()
+      handleSelect(suggestions[highlighted])
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="absolute top-6 left-6 right-6 z-10">
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="Enter an address..."
-          className="flex-1 rounded-full px-5 py-3 text-white placeholder-gray focus:outline-none"
-          style={{ background: 'rgba(11,11,12,0.92)', border: '1px solid #2a2a2e' }}
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-orange text-black font-medium px-6 py-3 rounded-full disabled:opacity-50 transition-opacity"
-        >
-          {loading ? '…' : 'Search'}
-        </button>
+      <div className="relative">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={address}
+            onChange={(e) => {
+              setAddress(e.target.value)
+              setOpen(true)
+              setHighlighted(-1)
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => {
+              blurTimeout.current = setTimeout(() => setOpen(false), 150)
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter an address..."
+            className="flex-1 rounded-full px-5 py-3 text-white placeholder-gray focus:outline-none"
+            style={{ background: 'rgba(11,11,12,0.92)', border: '1px solid #2a2a2e' }}
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-orange text-black font-medium px-6 py-3 rounded-full disabled:opacity-50 transition-opacity"
+          >
+            {loading ? '…' : 'Search'}
+          </button>
+        </div>
+
+        {open && suggestions.length > 0 && (
+          <div
+            className="absolute top-full mt-2 left-0 right-[88px] rounded-xl overflow-hidden"
+            style={{ background: 'rgba(11,11,12,0.97)', border: '1px solid #2a2a2e' }}
+          >
+            {suggestions.map((s, i) => (
+              <div
+                key={s.id}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  clearTimeout(blurTimeout.current)
+                  handleSelect(s)
+                }}
+                className="px-4 py-3 text-sm cursor-pointer"
+                style={{
+                  color: '#edebe6',
+                  background: i === highlighted ? 'rgba(255,90,46,0.12)' : 'transparent',
+                  borderBottom: i < suggestions.length - 1 ? '1px solid #1f1f22' : 'none',
+                }}
+              >
+                {s.label}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {error && (

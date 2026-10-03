@@ -20,9 +20,10 @@ const DARK_STYLE = {
   layers: [{ id: 'dark-tiles-layer', type: 'raster', source: 'dark-tiles' }],
 }
 
-export default function MapContainer({ campus = 'sfu' }) {
+export default function MapContainer({ campus = 'sfu', pin = null }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
+  const markerRef = useRef(null)
 
   useEffect(() => {
     const { lat, lon } = CAMPUS_COORDS[campus]
@@ -73,10 +74,28 @@ export default function MapContainer({ campus = 'sfu' }) {
   }, [])
 
   useEffect(() => {
-    if (!mapRef.current) return
+    if (!mapRef.current || pin) return
     const { lat, lon } = CAMPUS_COORDS[campus]
     mapRef.current.flyTo({ center: [lon, lat], zoom: 12 })
   }, [campus])
+
+  useEffect(() => {
+    if (!mapRef.current || !pin) return
+
+    if (!markerRef.current) {
+      const el = document.createElement('div')
+      el.style.width = '16px'
+      el.style.height = '16px'
+      el.style.borderRadius = '50%'
+      el.style.background = '#FF5A2E'
+      el.style.border = '3px solid #0b0b0c'
+      el.style.boxShadow = '0 0 0 2px #FF5A2E'
+      markerRef.current = new maplibregl.Marker({ element: el })
+    }
+
+    markerRef.current.setLngLat([pin.lon, pin.lat]).addTo(mapRef.current)
+    mapRef.current.flyTo({ center: [pin.lon, pin.lat], zoom: 14 })
+  }, [pin])
 
   return <div ref={containerRef} className="w-full h-full" />
 }
