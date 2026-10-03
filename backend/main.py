@@ -1,9 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 import config
+from service import transit
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the prebuilt transit data once; missing/broken files fall back to estimates, never crash.
+    transit.load()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,11 +25,6 @@ app.add_middleware(
 )
 
 app.include_router(router)
-
-@app.on_event("startup")
-async def startup():
-    # Load GTFS at startup (BE2 fills this in)
-    pass
 
 if __name__ == "__main__":
     import os
