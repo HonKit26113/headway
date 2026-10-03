@@ -1,24 +1,31 @@
 """Tests for scripts/build_artifacts.py: pick_service_date, build, main.
 
-Spec: CONTRACT.md, section "Build-time: `scripts/build_artifacts.py`".
+Spec: CONTRACT.md, sections "Build-time: `scripts/build_artifacts.py`" (Phase C) and
+"Build-time: commute to campus" -> "scripts/build_artifacts.py (Phase D additions)".
 Real feed (data/PROFILE.md): feed_info valid 20260907 (a Monday) -> 20270103 (a Sunday),
 feed_version '26SEP_20261002'.
 
 Offline: the tiny feed below is built in tmp_path. main() is always run with `build`
 monkeypatched, so it never reads or writes the real backend/data/ directory.
 Real-data tests build into tmp_path (never data/) and are marked @pytest.mark.real.
+
+Phase D: fixture builds pass campuses=CAMPUSES (one campus 'testu' sitting on stop 2016) so
+the output set is deterministic: stops.json, stop_stats.json, commute_testu.json, manifest.json.
 """
 from __future__ import annotations
 
 import datetime as dt
 import hashlib
 import json
+import time
 import zipfile
 import zlib
 from pathlib import Path
 
 import pytest
 
+import config
+import service.graph as graph
 import service.gtfs as gtfs
 from scripts import build_artifacts
 from scripts.build_artifacts import build, main, pick_service_date
@@ -26,12 +33,14 @@ from scripts.fetch_gtfs import UnsafeZipError
 
 BACKEND = Path(__file__).resolve().parent.parent
 REAL_ZIP = BACKEND / "data" / "raw" / "google_transit.zip"
-OUTPUTS = {"stops.json", "stop_stats.json", "manifest.json"}
+# Test campus placed exactly on fixture stop 2016 (Metrotown Bay 3).
+CAMPUSES = {"testu": (49.2260, -123.0041)}
+OUTPUTS = {"stops.json", "stop_stats.json", "commute_testu.json", "manifest.json"}
 MANIFEST_KEYS = {
     "feed_version", "feed_start", "feed_end", "service_date",
-    "source_sha256", "built_at", "counts",
+    "source_sha256", "built_at", "counts", "campuses",
 }
-COUNT_KEYS = {"stops", "stop_stats", "trips_on_service_date"}
+COUNT_KEYS = {"stops", "stop_stats", "trips_on_service_date", "commute"}
 
 
 def is_wednesday(yyyymmdd: str) -> bool:
@@ -152,6 +161,11 @@ EXPECTED_STOP_STATS = {
     # 2016: drop-off only -> absent. 555: no service -> absent.
 }
 
+# commute to 'testu' (49.2260, -123.0041), walking at 1.4 m/s; every stop within 1 km walks:
+#   1173 is 18.3 m away -> 0.22 min -> 0.2;  8068 is 23.4 m -> 0.28 -> 0.3;  2016 is on it -> 0.0
+#   555 is 2.7 km away with no service -> absent. (Riding is never faster than these walks.)
+EXPECTED_COMMUTE_TESTU = {"1173": 0.2, "8068": 0.3, "2016": 0.0}
+
 
 def write_feed(path: Path, members: dict[str, str] = FEED, extra: dict[str, str] | None = None) -> Path:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -222,16 +236,22 @@ def patch_build_stop_stats(monkeypatch, fn):
     monkeypatch.setattr(build_artifacts, "build_stop_stats", fn, raising=False)
 
 
+def patch_commute(monkeypatch, fn):
+    """Replace commute_from_all_stops wherever build() might look it up."""
+    monkeypatch.setattr(graph, "commute_from_all_stops", fn)
+    monkeypatch.setattr(build_artifacts, "commute_from_all_stops", fn, raising=False)
+
+
 # ===========================================================================
 # build
 # ===========================================================================
 class TestBuildOutputs:
-    def test_writes_exactly_the_three_files(self, feed_zip, out_dir):
-        build(feed_zip, out_dir, today="20261003")
+    def test_writes_exactly_the_four_files(self, feed_zip, out_dir):
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert {p.name for p in out_dir.iterdir()} == OUTPUTS
 
     def test_stops_json_shape(self, feed_zip, out_dir):
-        build(feed_zip, out_dir, today="20261003")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         stops = read_json_strict(out_dir / "stops.json")
         assert set(stops) == set(EXPECTED_STOPS), "boardable stops only (no stations/entrances)"
         for stop_id, (name, lat, lon) in EXPECTED_STOPS.items():
@@ -242,12 +262,12 @@ class TestBuildOutputs:
             assert type(got[2]) is float and got[2] == pytest.approx(lon)
 
     def test_stop_stats_json_content(self, feed_zip, out_dir):
-        build(feed_zip, out_dir, today="20261003")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert read_json_strict(out_dir / "stop_stats.json") == EXPECTED_STOP_STATS
 
     def test_manifest(self, feed_zip, out_dir):
         before = dt.datetime.now(dt.timezone.utc)
-        build(feed_zip, out_dir, today="20261003")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         after = dt.datetime.now(dt.timezone.utc)
         m = read_json_strict(out_dir / "manifest.json")
 
@@ -258,24 +278,29 @@ class TestBuildOutputs:
         assert m["service_date"] == "20261007"
         assert is_wednesday(m["service_date"])
         assert m["source_sha256"] == hashlib.sha256(feed_zip.read_bytes()).hexdigest()
-        assert m["counts"] == {"stops": 4, "stop_stats": 2, "trips_on_service_date": 2}
+        assert m["counts"] == {"stops": 4, "stop_stats": 2, "trips_on_service_date": 2,
+                               "commute": {"testu": 3}}
+        assert m["campuses"] == {"testu": [49.2260, -123.0041]}
 
         built_at = dt.datetime.fromisoformat(m["built_at"])
         assert built_at.utcoffset() == dt.timedelta(0), "built_at must be UTC with an explicit offset"
         assert before - dt.timedelta(seconds=1) <= built_at <= after + dt.timedelta(seconds=1)
 
     def test_returns_the_manifest(self, feed_zip, out_dir):
-        returned = build(feed_zip, out_dir, today="20261003")
+        returned = build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert returned == read_json_strict(out_dir / "manifest.json")
 
     def test_counts_are_plain_ints(self, feed_zip, out_dir):
-        returned = build(feed_zip, out_dir, today="20261003")
-        assert all(type(v) is int for v in returned["counts"].values())
-        assert set(returned["counts"]) == COUNT_KEYS
+        returned = build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        counts = returned["counts"]
+        assert set(counts) == COUNT_KEYS
+        assert all(type(v) is int for k, v in counts.items() if k != "commute")
+        assert type(counts["commute"]) is dict
+        assert all(type(k) is str and type(v) is int for k, v in counts["commute"].items())
 
     @pytest.mark.parametrize("name", sorted(OUTPUTS))
     def test_json_has_sorted_keys_and_no_nan(self, feed_zip, out_dir, name):
-        build(feed_zip, out_dir, today="20261003")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         text = (out_dir / name).read_text(encoding="utf-8")
         for token in ("NaN", "Infinity"):
             assert token not in text
@@ -283,29 +308,93 @@ class TestBuildOutputs:
 
     def test_service_date_follows_today(self, feed_zip, out_dir):
         """today=20261008 (Thu) -> service date 20261014 (next Wed): service '1' runs, 2 trips."""
-        m = build(feed_zip, out_dir, today="20261008")
+        m = build(feed_zip, out_dir, today="20261008", campuses=CAMPUSES)
         assert m["service_date"] == "20261014"
         assert m["counts"]["trips_on_service_date"] == 2
+
+
+class TestBuildCommute:
+    """Phase D: commute_<name>.json per campus + manifest campuses / counts.commute."""
+
+    def test_commute_file_content(self, feed_zip, out_dir):
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        assert read_json_strict(out_dir / "commute_testu.json") == EXPECTED_COMMUTE_TESTU
+
+    def test_commute_values_are_floats(self, feed_zip, out_dir):
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        data = read_json_strict(out_dir / "commute_testu.json")
+        assert all(type(k) is str and type(v) is float for k, v in data.items())
+
+    def test_counts_commute_matches_file_lengths(self, feed_zip, out_dir):
+        m = build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        for name in CAMPUSES:
+            assert m["counts"]["commute"][name] == len(read_json_strict(out_dir / f"commute_{name}.json"))
+
+    def test_multiple_campuses_one_file_each(self, feed_zip, out_dir):
+        """'far' is ~100 km from every fixture stop: its file exists and is empty, count 0."""
+        campuses = {**CAMPUSES, "far": (49.9, -122.0)}
+        m = build(feed_zip, out_dir, today="20261003", campuses=campuses)
+        names = {p.name for p in out_dir.iterdir()}
+        assert names == OUTPUTS | {"commute_far.json"}
+        assert read_json_strict(out_dir / "commute_far.json") == {}
+        assert read_json_strict(out_dir / "commute_testu.json") == EXPECTED_COMMUTE_TESTU
+        assert m["counts"]["commute"] == {"testu": 3, "far": 0}
+        assert m["campuses"] == {"testu": [49.2260, -123.0041], "far": [49.9, -122.0]}
+
+    def test_default_campuses_come_from_config(self, feed_zip, out_dir):
+        """campuses=None -> config.CAMPUS_COORDS (sfu, ubc, bcit)."""
+        m = build(feed_zip, out_dir, today="20261003")
+        names = {p.name for p in out_dir.iterdir()}
+        expected_files = {f"commute_{n}.json" for n in config.CAMPUS_COORDS}
+        assert names == {"stops.json", "stop_stats.json", "manifest.json"} | expected_files
+        assert m["campuses"] == {n: [lat, lon] for n, (lat, lon) in config.CAMPUS_COORDS.items()}
+        assert set(m["counts"]["commute"]) == set(config.CAMPUS_COORDS)
+        for n in config.CAMPUS_COORDS:
+            read_json_strict(out_dir / f"commute_{n}.json")
+
+    def test_commute_called_with_service_day_inputs(self, feed_zip, out_dir, monkeypatch):
+        """Wiring: one call per campus with the parsed stops / stop_times / trips, the active
+        service ids of the picked date (20261007 Wed -> {'1'}) and that campus's (lat, lon).
+        Whatever it returns is what lands in commute_<name>.json."""
+        calls = []
+
+        def spy(stops, stop_times, trips, service_ids, campus_latlon, **kw):
+            calls.append((stops.copy(), stop_times.copy(), trips.copy(), set(service_ids),
+                          tuple(campus_latlon)))
+            return {"1173": 12.3}
+
+        patch_commute(monkeypatch, spy)
+        m = build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        assert len(calls) == 1
+        stops, stop_times, trips, sids, latlon = calls[0]
+        assert sids == {"1"}
+        assert latlon == pytest.approx((49.2260, -123.0041))
+        assert set(stops["stop_id"]) == set(EXPECTED_STOPS)
+        assert {"trip_id", "stop_id", "stop_sequence", "arrival_s", "departure_s"} <= set(stop_times.columns)
+        assert {"trip_id", "route_id", "service_id", "direction_id"} <= set(trips.columns)
+        assert read_json_strict(out_dir / "commute_testu.json") == {"1173": 12.3}
+        assert m["counts"]["commute"] == {"testu": 1}
 
 
 class TestBuildSafety:
     def test_unsafe_zip_rejected_before_any_output(self, tmp_path, out_dir):
         bad = write_feed(tmp_path / "evil.zip", extra={"../evil.txt": "pwned"})
         with pytest.raises(UnsafeZipError):
-            build(bad, out_dir, today="20261003")
+            build(bad, out_dir, today="20261003", campuses=CAMPUSES)
         assert list(out_dir.iterdir()) == []
         assert not (tmp_path / "evil.txt").exists()
 
     def test_failure_midway_leaves_no_outputs_or_temp_files(self, feed_zip, out_dir, monkeypatch):
         patch_build_stop_stats(monkeypatch, boom)
         with pytest.raises(Boom):
-            build(feed_zip, out_dir, today="20261003")
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert list(out_dir.iterdir()) == [], "no outputs, no *.tmp leftovers"
 
     def test_failure_leaves_existing_good_files_untouched(self, feed_zip, out_dir, monkeypatch):
         good = {
             "stops.json": b'{"1": ["Old stop", 49.0, -123.0]}',
             "stop_stats.json": b'{"1": {"trips_per_day": 1}}',
+            "commute_testu.json": b'{"1": 42.0}',
             "manifest.json": b'{"feed_version": "OLD"}',
         }
         for name, data in good.items():
@@ -313,7 +402,7 @@ class TestBuildSafety:
 
         patch_build_stop_stats(monkeypatch, boom)
         with pytest.raises(Boom):
-            build(feed_zip, out_dir, today="20261003")
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
 
         assert {p.name for p in out_dir.iterdir()} == OUTPUTS, "no temp files left"
         for name, data in good.items():
@@ -335,7 +424,7 @@ class TestBuildSafety:
 
         monkeypatch.setattr(build_artifacts.os, "replace", flaky_replace)
         with pytest.raises(OSError):
-            build(feed_zip, out_dir, today="20261003")
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
 
         names = {p.name for p in out_dir.iterdir()}
         assert "manifest.json" not in names
@@ -344,18 +433,203 @@ class TestBuildSafety:
     def test_successful_build_leaves_manifest(self, feed_zip, out_dir):
         for name in OUTPUTS:
             (out_dir / name).write_text('{"old": true}', encoding="utf-8")
-        build(feed_zip, out_dir, today="20261003")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert read_json_strict(out_dir / "manifest.json")["feed_version"] == "TEST_V1"
+
+    # --- Phase D: commute files are part of the same atomic set -----------
+    def test_commute_failure_leaves_no_outputs(self, feed_zip, out_dir, monkeypatch):
+        patch_commute(monkeypatch, boom)
+        with pytest.raises(Boom):
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        assert [p.name for p in out_dir.iterdir()] == []
+
+    def test_commute_failure_leaves_existing_good_files_untouched(self, feed_zip, out_dir, monkeypatch):
+        good = {name: f'{{"old": "{name}"}}'.encode() for name in OUTPUTS}
+        for name, data in good.items():
+            (out_dir / name).write_bytes(data)
+        patch_commute(monkeypatch, boom)
+        with pytest.raises(Boom):
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        assert {p.name for p in out_dir.iterdir()} == OUTPUTS, "no temp files left"
+        for name, data in good.items():
+            assert (out_dir / name).read_bytes() == data, f"{name} was modified"
+
+    def test_manifest_replaced_last_after_commute_files(self, feed_zip, out_dir, monkeypatch):
+        order = []
+        real_replace = build_artifacts.os.replace
+
+        def recording_replace(src, dst, *a, **k):
+            order.append(Path(dst).name)
+            return real_replace(src, dst, *a, **k)
+
+        monkeypatch.setattr(build_artifacts.os, "replace", recording_replace)
+        campuses = {**CAMPUSES, "far": (49.9, -122.0)}
+        build(feed_zip, out_dir, today="20261003", campuses=campuses)
+        assert order[-1] == "manifest.json"
+        assert order.count("manifest.json") == 1
+        for name in ("stops.json", "stop_stats.json", "commute_testu.json", "commute_far.json"):
+            assert name in order[:-1], f"{name} not swapped in before the manifest"
+
+    def test_failed_commute_swap_removes_old_manifest(self, feed_zip, out_dir, monkeypatch):
+        """Swapping in commute_testu.json fails -> old manifest gone, no temp files left."""
+        for name in OUTPUTS:
+            (out_dir / name).write_text('{"old": true}', encoding="utf-8")
+
+        real_replace = build_artifacts.os.replace
+
+        def flaky_replace(src, dst, *a, **k):
+            if Path(dst).name == "commute_testu.json":
+                raise OSError("disk full while writing commute file")
+            return real_replace(src, dst, *a, **k)
+
+        monkeypatch.setattr(build_artifacts.os, "replace", flaky_replace)
+        with pytest.raises(OSError):
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        names = {p.name for p in out_dir.iterdir()}
+        assert "manifest.json" not in names
+        assert names <= OUTPUTS - {"manifest.json"}, f"temp files left behind: {names - OUTPUTS}"
+
+    # --- Phase D decision 6: campus names become file names -------------
+    BAD_CAMPUS_NAMES = ["../x", "SFU", "a b", "", "sfu.json", "x/y"]
+
+    @pytest.mark.parametrize("bad", BAD_CAMPUS_NAMES)
+    def test_invalid_campus_name_rejected_before_any_output(self, feed_zip, out_dir, bad):
+        """Names must match ^[a-z0-9_]+$ -> ValueError before anything is written."""
+        with pytest.raises(ValueError):
+            build(feed_zip, out_dir, today="20261003", campuses={bad: (49.2260, -123.0041)})
+        assert list(out_dir.iterdir()) == []
+        assert not (out_dir.parent / "x.json").exists()
+        assert not (out_dir.parent / "commute_..").exists()
+
+    @pytest.mark.parametrize("bad", BAD_CAMPUS_NAMES)
+    def test_invalid_campus_name_leaves_existing_files_untouched(self, feed_zip, out_dir, bad):
+        good = {name: f'{{"old": "{name}"}}'.encode() for name in OUTPUTS}
+        for name, data in good.items():
+            (out_dir / name).write_bytes(data)
+        with pytest.raises(ValueError):
+            build(feed_zip, out_dir, today="20261003",
+                  campuses={**CAMPUSES, bad: (49.2260, -123.0041)})
+        assert {p.name for p in out_dir.iterdir()} == OUTPUTS, "no new files"
+        for name, data in good.items():
+            assert (out_dir / name).read_bytes() == data, f"{name} was modified"
+
+    def test_valid_campus_name_with_digit_and_underscore(self, feed_zip, out_dir):
+        m = build(feed_zip, out_dir, today="20261003", campuses={"ubc_2": (49.2260, -123.0041)})
+        assert read_json_strict(out_dir / "commute_ubc_2.json") == EXPECTED_COMMUTE_TESTU
+        assert m["campuses"] == {"ubc_2": [49.2260, -123.0041]}
+
+    # --- Phase D decision 7: stale commute files are removed --------------
+    def test_stale_commute_file_removed_on_success(self, feed_zip, out_dir):
+        (out_dir / "commute_oldcampus.json").write_text('{"1": 5.0}', encoding="utf-8")
+        (out_dir / "notes.txt").write_bytes(b"keep me\n")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        names = {p.name for p in out_dir.iterdir()}
+        assert "commute_oldcampus.json" not in names
+        assert names == OUTPUTS | {"notes.txt"}
+        assert (out_dir / "notes.txt").read_bytes() == b"keep me\n"
+        assert read_json_strict(out_dir / "commute_testu.json") == EXPECTED_COMMUTE_TESTU
+        assert read_json_strict(out_dir / "manifest.json")["campuses"] == {"testu": [49.2260, -123.0041]}
+
+    def test_stale_commute_file_kept_on_failed_build(self, feed_zip, out_dir, monkeypatch):
+        (out_dir / "commute_oldcampus.json").write_text('{"1": 5.0}', encoding="utf-8")
+        (out_dir / "notes.txt").write_bytes(b"keep me\n")
+        patch_commute(monkeypatch, boom)
+        with pytest.raises(Boom):
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        assert (out_dir / "commute_oldcampus.json").read_text(encoding="utf-8") == '{"1": 5.0}'
+        assert (out_dir / "notes.txt").read_bytes() == b"keep me\n"
+        assert {p.name for p in out_dir.iterdir()} == {"commute_oldcampus.json", "notes.txt"}
+
+    # --- Phase D decision 9: campus values validated before anything else --
+    BAD_CAMPUS_VALUES = [
+        "ab",
+        ("49", "-123"),
+        (True, 1),
+        (1, 2, 3),
+        (49,),
+        (float("nan"), 0),
+        (0, float("inf")),
+        (91, 0),
+        (0, 181),
+    ]
+    BAD_VALUE_IDS = ["str", "str-pair", "bools", "triple", "single", "nan-lat", "inf-lon",
+                     "lat-91", "lon-181"]
+
+    @staticmethod
+    def _spy_never_called(monkeypatch):
+        """Patch validate_zip and commute_from_all_stops with spies that record calls."""
+        calls = []
+
+        def spy_validate(*a, **k):
+            calls.append("validate_zip")
+
+        def spy_commute(*a, **k):
+            calls.append("commute_from_all_stops")
+            return {}
+
+        monkeypatch.setattr(build_artifacts, "validate_zip", spy_validate, raising=False)
+        import scripts.fetch_gtfs as fetch_gtfs
+        monkeypatch.setattr(fetch_gtfs, "validate_zip", spy_validate)
+        patch_commute(monkeypatch, spy_commute)
+        return calls
+
+    @pytest.mark.parametrize("bad", BAD_CAMPUS_VALUES, ids=BAD_VALUE_IDS)
+    def test_invalid_campus_value_rejected_first_empty_dir(self, feed_zip, out_dir, monkeypatch, bad):
+        calls = self._spy_never_called(monkeypatch)
+        with pytest.raises(ValueError):
+            build(feed_zip, out_dir, today="20261003", campuses={"testu": bad})
+        assert calls == [], "validation must run before validate_zip / commute"
+        assert list(out_dir.iterdir()) == []
+
+    @pytest.mark.parametrize("bad", BAD_CAMPUS_VALUES, ids=BAD_VALUE_IDS)
+    def test_invalid_campus_value_leaves_existing_files_untouched(self, feed_zip, out_dir, monkeypatch, bad):
+        good = {name: f'{{"old": "{name}"}}'.encode() for name in OUTPUTS}
+        for name, data in good.items():
+            (out_dir / name).write_bytes(data)
+        calls = self._spy_never_called(monkeypatch)
+        with pytest.raises(ValueError):
+            build(feed_zip, out_dir, today="20261003", campuses={**CAMPUSES, "other": bad})
+        assert calls == []
+        assert {p.name for p in out_dir.iterdir()} == OUTPUTS, "no new files"
+        for name, data in good.items():
+            assert (out_dir / name).read_bytes() == data, f"{name} was modified"
+
+    def test_non_str_campus_name_rejected_first(self, feed_zip, out_dir, monkeypatch):
+        calls = self._spy_never_called(monkeypatch)
+        with pytest.raises(ValueError):
+            build(feed_zip, out_dir, today="20261003", campuses={1: (49.2, -123.0)})
+        assert calls == []
+        assert list(out_dir.iterdir()) == []
+
+    def test_int_coords_accepted(self, feed_zip, out_dir):
+        """(49, -123) is a pair of real numbers: accepted. Every fixture stop is > 1 km from
+        it with no daytime ride there, so the file exists (contents not asserted here)."""
+        m = build(feed_zip, out_dir, today="20261003", campuses={"intu": (49, -123)})
+        assert (out_dir / "commute_intu.json").exists()
+        assert m["campuses"] == {"intu": [49, -123]}
+
+    # --- Phase D decision 12: every stale commute_*.json goes --------------
+    def test_any_stale_commute_prefixed_file_deleted(self, feed_zip, out_dir):
+        """Rule: build owns the commute_*.json namespace, even hand-made files."""
+        (out_dir / "commute_notes.json").write_text('{"note": "hand made"}', encoding="utf-8")
+        (out_dir / "README.md").write_bytes(b"# my notes\n")
+        (out_dir / "stops.json").write_text('{"old": true}', encoding="utf-8")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
+        names = {p.name for p in out_dir.iterdir()}
+        assert "commute_notes.json" not in names
+        assert (out_dir / "README.md").read_bytes() == b"# my notes\n"
+        assert set(read_json_strict(out_dir / "stops.json")) == set(EXPECTED_STOPS)
+        assert names == OUTPUTS | {"README.md"}
 
     # --- D11: no leftovers of any name (temp names are not fixed) ----------
     def test_no_leftovers_after_success_including_hidden(self, feed_zip, out_dir):
-        build(feed_zip, out_dir, today="20261003")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert sorted(p.name for p in out_dir.iterdir()) == sorted(OUTPUTS)
 
     def test_no_leftovers_after_failure_including_hidden(self, feed_zip, out_dir, monkeypatch):
         patch_build_stop_stats(monkeypatch, boom)
         with pytest.raises(Boom):
-            build(feed_zip, out_dir, today="20261003")
+            build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert [p.name for p in out_dir.iterdir()] == []
 
     # --- D9: bad feed contents --------------------------------------------
@@ -363,7 +637,7 @@ class TestBuildSafety:
         members = {**FEED, "feed_info.txt": FEED["feed_info.txt"].splitlines()[0] + "\n"}
         bad = write_feed(tmp_path / "empty_feed_info.zip", members)
         with pytest.raises(ValueError, match="feed_info"):
-            build(bad, out_dir, today="20261003")
+            build(bad, out_dir, today="20261003", campuses=CAMPUSES)
         assert list(out_dir.iterdir()) == []
 
     def test_corrupt_member_data_raises_zip_error(self, tmp_path, out_dir):
@@ -373,12 +647,12 @@ class TestBuildSafety:
         from scripts.fetch_gtfs import validate_zip
         validate_zip(bad)  # precondition: the corruption is invisible to validate_zip
         with pytest.raises((zipfile.BadZipFile, zlib.error)):
-            build(bad, out_dir, today="20261003")
+            build(bad, out_dir, today="20261003", campuses=CAMPUSES)
         assert list(out_dir.iterdir()) == []
 
     def test_does_not_modify_the_source_zip(self, feed_zip, out_dir):
         before = feed_zip.read_bytes()
-        build(feed_zip, out_dir, today="20261003")
+        build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert feed_zip.read_bytes() == before
 
 
@@ -389,7 +663,9 @@ FAKE_MANIFEST = {
     "feed_version": "TEST_V1", "feed_start": "20260907", "feed_end": "20270103",
     "service_date": "20261007", "source_sha256": "0" * 64,
     "built_at": "2026-10-03T00:00:00+00:00",
-    "counts": {"stops": 4, "stop_stats": 2, "trips_on_service_date": 2},
+    "counts": {"stops": 4, "stop_stats": 2, "trips_on_service_date": 2,
+               "commute": {"sfu": 3, "ubc": 2, "bcit": 1}},
+    "campuses": {"sfu": [49.2766, -122.9156], "ubc": [49.2606, -123.2533], "bcit": [49.2490, -123.0010]},
 }
 
 
@@ -471,9 +747,12 @@ def real_build(tmp_path_factory):
     def _get():
         if "result" not in _real_cache and "error" not in _real_cache:
             try:
-                manifest = build(REAL_ZIP, out, today="20261003")
+                t0 = time.perf_counter()
+                manifest = build(REAL_ZIP, out, today="20261003")  # default campuses (config)
+                _real_cache["elapsed_s"] = time.perf_counter() - t0
                 stats = json.loads((out / "stop_stats.json").read_text(encoding="utf-8"))
                 stops = json.loads((out / "stops.json").read_text(encoding="utf-8"))
+                _real_cache["out"] = out
                 _real_cache["result"] = (manifest, stats)
                 _real_cache["stops"] = stops
             except Exception as e:  # cached so the slow build never runs twice
@@ -535,3 +814,63 @@ class TestRealFeed:
         bad = {k: s["headway_min"] for k, s in stats.items()
                if s["headway_min"] is not None and not (1.0 <= s["headway_min"] <= 720.0)}
         assert bad == {}
+
+
+def real_commute(real_build) -> dict[str, dict[str, float]]:
+    """{campus: commute_<campus>.json} from the shared real build (read lazily so the
+    Phase C real tests above don't depend on Phase D outputs)."""
+    real_build()
+    if "commute" not in _real_cache:
+        out = _real_cache["out"]
+        _real_cache["commute"] = {
+            name: read_json_strict(out / f"commute_{name}.json") for name in config.CAMPUS_COORDS
+        }
+    return _real_cache["commute"]
+
+
+@pytest.mark.real
+class TestRealCommute:
+    """Phase D validator expectations (CONTRACT.md) on the real feed, service date 20261007."""
+
+    def test_whole_build_under_60s(self, real_build):
+        real_build()
+        assert _real_cache["elapsed_s"] < 60, f"build took {_real_cache['elapsed_s']:.1f}s"
+
+    def test_manifest_campuses_match_config(self, real_build):
+        manifest, _ = real_build()
+        assert manifest["campuses"] == {n: [lat, lon] for n, (lat, lon) in config.CAMPUS_COORDS.items()}
+
+    def test_manifest_commute_counts_match_files(self, real_build):
+        manifest, _ = real_build()
+        assert manifest["counts"]["commute"] == {n: len(d) for n, d in real_commute(real_build).items()}
+
+    @pytest.mark.parametrize("campus", sorted(config.CAMPUS_COORDS))
+    def test_at_least_7000_stops_reach_each_campus(self, real_build, campus):
+        assert len(real_commute(real_build)[campus]) >= 7_000
+
+    @pytest.mark.parametrize("campus", sorted(config.CAMPUS_COORDS))
+    def test_every_value_in_range(self, real_build, campus):
+        bad = {k: v for k, v in real_commute(real_build)[campus].items() if not (0 < v < 240)}
+        assert bad == {}
+
+    @pytest.mark.parametrize("campus", sorted(config.CAMPUS_COORDS))
+    def test_keys_are_known_stops(self, real_build, campus):
+        assert set(real_commute(real_build)[campus]) <= set(_real_cache["stops"])
+
+    # Revised validator ranges (CONTRACT.md, after decision 8: daytime hops only).
+    @pytest.mark.parametrize("platform", ["8068", "8049"])
+    def test_metrotown_to_sfu(self, real_build, platform):
+        assert 42 <= real_commute(real_build)["sfu"][platform] <= 58
+
+    @pytest.mark.parametrize("platform", ["8044", "8073"])
+    def test_commercial_broadway_to_sfu(self, real_build, platform):
+        assert 35 <= real_commute(real_build)["sfu"][platform] <= 55
+
+    def test_metrotown_to_bcit(self, real_build):
+        assert 8 <= real_commute(real_build)["bcit"]["8068"] <= 20
+
+    def test_sfu_exchange_to_sfu(self, real_build):
+        assert real_commute(real_build)["sfu"]["1875"] < 6
+
+    def test_ubc_exchange_to_ubc(self, real_build):
+        assert real_commute(real_build)["ubc"]["11792"] < 12
