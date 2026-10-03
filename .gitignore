@@ -1,5 +1,9 @@
 # Backend
 backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+**/.claude/settings.local.json
 backend/venv/
 **/__pycache__/
 *.pyc
@@ -21,3 +25,8 @@ frontend/.DS_Store
 # OS
 .DS_Store
 Thumbs.db
+
+# BE2
+backend/.venv/
+backend/data/raw/
+backend/.pytest_cache/
