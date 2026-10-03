@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { fetchScore } from '../lib/api'
+import { fetchScore, ScoreApiError } from '../lib/api'
 import { useGeocode } from '../hooks/useGeocode'
 
 export default function SearchBar({ campus, onResult, onLocationSelect }) {
@@ -17,6 +17,7 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
     const thisRequest = ++requestIdRef.current
     setLoading(true)
     setError(null)
+    onResult(null) // clear any previous result so stale data can't linger on failure
     if (location) onLocationSelect?.(location)
 
     try {
@@ -25,7 +26,11 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
       onResult({ ...data, address: addressText, isSample: false })
     } catch (err) {
       if (thisRequest !== requestIdRef.current) return
-      setError('Backend not ready yet — scoring API is still being built.')
+      if (err instanceof ScoreApiError && err.status === 400) {
+        setError(err.message || 'No results for that address.')
+      } else {
+        setError('Could not reach the scoring service. Try again in a moment.')
+      }
     } finally {
       if (thisRequest === requestIdRef.current) setLoading(false)
     }

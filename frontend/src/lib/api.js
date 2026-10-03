@@ -1,5 +1,12 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+export class ScoreApiError extends Error {
+  constructor(status, detail) {
+    super(detail || `Score request failed: ${status}`)
+    this.status = status
+  }
+}
+
 export async function fetchScore(address, campus) {
   const res = await fetch(`${API_URL}/api/score`, {
     method: 'POST',
@@ -8,7 +15,13 @@ export async function fetchScore(address, campus) {
   })
 
   if (!res.ok) {
-    throw new Error(`Score request failed: ${res.status}`)
+    let detail = null
+    try {
+      detail = (await res.json()).detail
+    } catch {
+      // response wasn't JSON - fall back to the generic message
+    }
+    throw new ScoreApiError(res.status, detail)
   }
 
   return res.json()
