@@ -1,33 +1,18 @@
+import math
+
 from api.models import ScoreResponse, Factor
-
-# def compute_score(latlon: tuple, campus: str) -> ScoreResponse:
-#     # BE1 fills this in
-#     pass
+from service.transit import nearest_stops, stop_stats, commute_minutes
 
 
-#    score = (
-#      commute_factor * 0.3 +        # 0–10: 60min→0, 15min→10
-#      frequency_factor * 0.3 +      # 0–10: 30min headway→0, 5min→10
-#      latenight_factor * 0.2 +      # 0–10: no late service→0, after 1am→10
-#      walk_factor * 0.2             # 0–10: 20min walk→0, 2min→10
-#    )
-#    score = min(10, score)
-#    → Return `{score: 8.4, factors: {...}}`
-
-
-
-UBC = (100, 100)
-
-# the original function had `dest` as a string. fix later.
-def compute_score(origin: tuple, dest: tuple) -> ScoreResponse:
-    # BE1 fills this in
-    stops = nearest_stops(origin, 300)
+def compute_score(origin: tuple, campus: str) -> ScoreResponse:
+    lat, lon = origin
+    stops = nearest_stops(lat, lon, radius_m=300)
     shortest_time_to_dest = math.inf
     headways = []
     last_departure = 0
     best_walk_m = math.inf
     for stop, walk_distance_m in stops:
-        time = commute_minutes(stop.stop_id, dest)
+        time = commute_minutes(stop.stop_id, campus)
         if time is None:
             continue
         if time <= shortest_time_to_dest:
@@ -35,6 +20,8 @@ def compute_score(origin: tuple, dest: tuple) -> ScoreResponse:
             best_walk_m = walk_distance_m
 
         stats = stop_stats(stop.stop_id)
+        if stats is None:
+            continue
         if stats.headway_min is not None:
             headways.append(stats.headway_min)
         if stats.last_departure_min is not None and stats.last_departure_min > last_departure:

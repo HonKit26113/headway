@@ -1,12 +1,24 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from api.models import ScoreRequest, ScoreResponse
+from service.scoring import compute_score
+from service.geocoding import geocode
 
 router = APIRouter(prefix="/api")
 
 @router.post("/score")
 async def score(req: ScoreRequest) -> ScoreResponse:
-    # BE1 fills this in
-    pass
+    try:
+        location = geocode(req.address)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"geocoder unavailable: {e}")
+
+    if location is None:
+        raise HTTPException(status_code=400, detail="Address not found")
+
+    try:
+        return compute_score((location.lat, location.lon), req.campus)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/health")
 async def health():
