@@ -13,7 +13,7 @@ CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", 21600))
 CAMPUS_COORDS = {
     "sfu": (49.2766, -122.9156),
     "ubc": (49.2606, -123.2533),
-    "bcit": (49.2506, -122.9506),
+    "bcit": (49.2490, -123.0010),  # BCIT Burnaby campus (Willingdon Ave & Canada Way)
 }
 
 # Scoring thresholds
