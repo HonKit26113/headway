@@ -2,7 +2,9 @@
 import datetime as dt
 import hashlib
 import json
+import math
 import os
+import re
 import sys
 import tempfile
 import zipfile
@@ -14,12 +16,14 @@ BACKEND = Path(__file__).resolve().parent.parent
 if str(BACKEND) not in sys.path:  # allow `python scripts/build_artifacts.py` from anywhere
     sys.path.insert(0, str(BACKEND))
 
+import config  # noqa: E402
 from scripts.fetch_gtfs import UnsafeZipError, validate_zip  # noqa: E402
-from service import gtfs  # noqa: E402
+from service import graph, gtfs  # noqa: E402
 
 RAW_ZIP = BACKEND / "data" / "raw" / "google_transit.zip"
 OUT_DIR = BACKEND / "data"
-OUTPUTS = ("stops.json", "stop_stats.json", "manifest.json")  # manifest last = set is complete
+MANIFEST = "manifest.json"  # written last: present = complete set
+CAMPUS_NAME = re.compile(r"[a-z0-9_]+")  # campus names become file names
 WEDNESDAY = 2
 LOCAL_TZ = ZoneInfo("America/Vancouver")
 
@@ -60,17 +64,37 @@ def _write_all(out_dir: Path, docs: dict[str, object]) -> None:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(doc, f, allow_nan=False, sort_keys=True)
             os.chmod(tmp, 0o644)
-        (out_dir / OUTPUTS[-1]).unlink(missing_ok=True)
-        for name in OUTPUTS:
+        (out_dir / MANIFEST).unlink(missing_ok=True)
+        for name in [n for n in docs if n != MANIFEST]:
             os.replace(temps[name], out_dir / name)
+        for stale in out_dir.glob("commute_*.json"):  # campuses no longer in the set
+            if stale.name not in docs:
+                stale.unlink()
+        os.replace(temps[MANIFEST], out_dir / MANIFEST)
     finally:
         for tmp in temps.values():
             tmp.unlink(missing_ok=True)
 
 
-def build(zip_path: Path, out_dir: Path, *, today: str | None = None) -> dict:
-    """Validate the feed, compute stops + per-stop stats, write the JSON artifacts."""
+def _check_campuses(campuses: dict) -> None:
+    """Names become file names and coordinates drive the search, so reject bad ones up front."""
+    for name, latlon in campuses.items():
+        if not (isinstance(name, str) and CAMPUS_NAME.fullmatch(name)):
+            raise ValueError(f"invalid campus name {name!r}: use a-z, 0-9, _")
+        if isinstance(latlon, (str, bytes)) or len(latlon) != 2:
+            raise ValueError(f"campus {name}: need a (lat, lon) pair")
+        lat, lon = latlon
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in (lat, lon)):
+            raise ValueError(f"campus {name}: lat/lon must be numbers")
+        if not (math.isfinite(lat) and math.isfinite(lon) and abs(lat) <= 90 and abs(lon) <= 180):
+            raise ValueError(f"campus {name}: lat/lon out of range")
+
+
+def build(zip_path: Path, out_dir: Path, *, today: str | None = None, campuses: dict | None = None) -> dict:
+    """Validate the feed, compute stops, per-stop stats and commute times, write the JSON artifacts."""
     zip_path, out_dir = Path(zip_path), Path(out_dir)
+    campuses = dict(config.CAMPUS_COORDS if campuses is None else campuses)
+    _check_campuses(campuses)
     validate_zip(zip_path)
     today = today or f"{dt.datetime.now(LOCAL_TZ):%Y%m%d}"
 
@@ -83,10 +107,16 @@ def build(zip_path: Path, out_dir: Path, *, today: str | None = None) -> dict:
         stops = gtfs.load_stops(zf)
         trips = gtfs.load_trips(zf)
         service_ids = gtfs.active_service_ids(zf, service_date)
-        wanted = {"trip_id", "stop_id", "departure_time", "pickup_type"}
+        wanted = {"trip_id", "stop_id", "stop_sequence", "arrival_time", "departure_time",
+                  "pickup_type", "drop_off_type"}
         stop_times = gtfs.read_table(zf, "stop_times.txt", usecols=lambda c: c in wanted)
+        stop_times["arrival_s"] = gtfs.parse_gtfs_times(stop_times.pop("arrival_time"))
         stop_times["departure_s"] = gtfs.parse_gtfs_times(stop_times.pop("departure_time"))
         stats = gtfs.build_stop_stats(stop_times, trips, service_ids)
+        commutes = {
+            name: graph.commute_from_all_stops(stops, stop_times, trips, service_ids, tuple(latlon))
+            for name, latlon in campuses.items()
+        }
 
     stops_doc = {
         sid: [name, lat, lon]
@@ -101,13 +131,18 @@ def build(zip_path: Path, out_dir: Path, *, today: str | None = None) -> dict:
         "service_date": service_date,
         "source_sha256": _sha256(zip_path),
         "built_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "campuses": {name: [float(lat), float(lon)] for name, (lat, lon) in campuses.items()},
         "counts": {
             "stops": len(stops_doc),
             "stop_stats": len(stats),
             "trips_on_service_date": int(trips["service_id"].isin(service_ids).sum()),
+            "commute": {name: len(c) for name, c in commutes.items()},
         },
     }
-    _write_all(out_dir, {"stops.json": stops_doc, "stop_stats.json": stats, "manifest.json": manifest})
+    docs = {"stops.json": stops_doc, "stop_stats.json": stats}
+    docs.update({f"commute_{name}.json": c for name, c in commutes.items()})
+    docs[MANIFEST] = manifest
+    _write_all(out_dir, docs)
     return manifest
 
 
