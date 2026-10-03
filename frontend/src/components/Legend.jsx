@@ -10,11 +10,11 @@ export default function Legend() {
         className="text-[#a9a69f]"
         style={{ fontFamily: 'Geist', fontWeight: 600, fontSize: '10.5px', letterSpacing: '0.63px' }}
       >
-        TRANSIT SCORE
+        STOP FREQUENCY
       </span>
 
       <div className="flex items-center gap-2">
-        <span className="text-[#8e8c87] text-xs">0</span>
+        <span className="text-[#8e8c87] text-xs">Low</span>
         <div className="flex gap-[3px]">
           {SWATCH_OPACITIES.map((opacity) => (
             <div
@@ -27,7 +27,7 @@ export default function Legend() {
             />
           ))}
         </div>
-        <span className="text-[#8e8c87] text-xs">10</span>
+        <span className="text-[#8e8c87] text-xs">High</span>
       </div>
     </div>
   )
