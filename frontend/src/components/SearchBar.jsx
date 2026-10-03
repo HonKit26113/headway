@@ -9,21 +9,25 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const blurTimeout = useRef(null)
+  const requestIdRef = useRef(0)
 
   const suggestions = useGeocode(open ? address : '')
 
   const runScore = async (addressText, location) => {
+    const thisRequest = ++requestIdRef.current
     setLoading(true)
     setError(null)
     if (location) onLocationSelect?.(location)
 
     try {
       const data = await fetchScore(addressText, campus)
+      if (thisRequest !== requestIdRef.current) return // a newer search superseded this one
       onResult({ ...data, address: addressText, isSample: false })
     } catch (err) {
+      if (thisRequest !== requestIdRef.current) return
       setError('Backend not ready yet — scoring API is still being built.')
     } finally {
-      setLoading(false)
+      if (thisRequest === requestIdRef.current) setLoading(false)
     }
   }
 
