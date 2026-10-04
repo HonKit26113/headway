@@ -7,11 +7,16 @@ export class ScoreApiError extends Error {
   }
 }
 
-export async function fetchScore(address, campus) {
+export async function fetchScore(address, campus, lat, lon) {
+  const body = { address, campus }
+  if (lat !== undefined && lon !== undefined) {
+    body.lat = lat
+    body.lon = lon
+  }
   const res = await fetch(`${API_URL}/api/score`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ address, campus }),
+    body: JSON.stringify(body),
   })
 
   if (!res.ok) {

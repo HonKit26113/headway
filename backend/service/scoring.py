@@ -17,7 +17,7 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
         time = commute_minutes(stop.stop_id, campus)
         if time is None:
             continue
-        if time <= shortest_time_to_dest:
+        if time < shortest_time_to_dest:
             shortest_time_to_dest = time
             best_walk_m = walk_distance_m
             best_stop_id = stop.stop_id
