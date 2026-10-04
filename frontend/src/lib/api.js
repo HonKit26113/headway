@@ -26,3 +26,18 @@ export async function fetchScore(address, campus) {
 
   return res.json()
 }
+
+export async function fetchSummary(score, factors, campus) {
+  try {
+    const res = await fetch(`${API_URL}/api/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score, factors, campus }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.summary ?? null
+  } catch {
+    return null // the verdict sentence is a nice-to-have - never let it break the score
+  }
+}

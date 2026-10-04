@@ -11,6 +11,7 @@ export default function MapView() {
   const [pin, setPin] = useState(null)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   return (
     <div className="flex h-screen bg-black">
@@ -21,6 +22,7 @@ export default function MapView() {
           onResult={setResult}
           onLocationSelect={setPin}
           onLoadingChange={setLoading}
+          onSummaryLoadingChange={setSummaryLoading}
         />
         <CampusPicker campus={campus} onChange={setCampus} />
         <div className="absolute bottom-6 left-6 z-10 flex items-center gap-4">
@@ -40,7 +42,7 @@ export default function MapView() {
           </button>
         </div>
       </div>
-      <ScorePanel result={result} isSample={!result} loading={loading} />
+      <ScorePanel result={result} isSample={!result} loading={summaryLoading} />
     </div>
   )
 }

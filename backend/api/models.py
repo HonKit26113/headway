@@ -13,3 +13,8 @@ class ScoreResponse(BaseModel):
     score: float
     factors: list[Factor]
     summary: str | None = None
+
+class SummaryRequest(BaseModel):
+    score: float
+    factors: list[Factor]
+    campus: str
