@@ -40,6 +40,8 @@ def get_line_color(line: str) -> str:
         return "#4c2d7a"
     elif line == "SeaBus":
         return "#746661"
+    elif line == "99":
+        return "#ff7322"
     elif line.startswith("R") and line[1:].isdigit():
         return "#008522"  # RapidBus Green
     else:
@@ -91,8 +93,8 @@ def build_route_geojson(origin: tuple, campus: str) -> dict:
     here = [lon, lat]
     campus_pt = [campus_lon, campus_lat]
 
-    # Find the best stop (shortest commute time)
-    stops = nearest_stops(lat, lon, radius_m=1000)
+    # Find the best stop (shortest commute time) - match scoring.py logic exactly
+    stops = nearest_stops(lat, lon, radius_m=300)
     best_stop = None
     best_time = math.inf
     for stop, walk_m in stops:
@@ -160,7 +162,7 @@ def build_route_geojson(origin: tuple, campus: str) -> dict:
                     best_stop.lat + (campus_lat - best_stop.lat) * ((i + 1) / n),
                 ]
                 specs.append(_spec("ride", [prev, end], line=line_name,
-                                   color=LEG_COLORS[i % len(LEG_COLORS)]))
+                                   color=get_line_color(line_name)))
                 prev = end
 
     return {"type": "FeatureCollection", "features": _render(specs)}
