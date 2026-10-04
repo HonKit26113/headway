@@ -1,25 +1,22 @@
 import logging
 
 import numpy as np
-from global_land_mask import globe  # pip install global-land-mask
-
+from service.transit import nearest_stops
 import config
 from service.scoring import compute_score
 
 logger = logging.getLogger(__name__)
 
 # How far around the selected campus to grid, in degrees (~0.1 = ~11km)
-RADIUS_DEG = 0.1
+RADIUS_DEG = 0.2
 
 # Light -> dark ramp (higher score = darker)
 COLOR_RAMP = ["#fff5eb", "#fdd0a2", "#fd8d3c", "#d94801", "#7f2704"]
 EMPTY_COLOR = "#555555"  # only used if a land cell has no scored neighbors at all
 
-
 def _hex_to_rgb(h: str) -> tuple:
     h = h.lstrip("#")
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-
 
 def score_to_color(t: float) -> str:
     """Map t in [0, 1] to a hex color along COLOR_RAMP."""
@@ -31,7 +28,6 @@ def score_to_color(t: float) -> str:
     rgb = [round(a + (b - a) * frac) for a, b in zip(c0, c1)]
     return "#{:02x}{:02x}{:02x}".format(*rgb)
 
-
 def _is_unreachable(response) -> bool:
     """True if the scorer found no route to campus from this point."""
     return any(
@@ -39,15 +35,13 @@ def _is_unreachable(response) -> bool:
         for f in response.factors
     )
 
-
-def _is_land_cell(south: float, west: float, north: float, east: float) -> bool:
+def _is_fillable_cell(lat: float, lon: float) -> bool:
     """
-    A cell counts as land if its center or any corner is on land, so cells
-    straddling the coastline are kept and the shore doesn't get a gap.
+    Instead of a 1GB land-mask database, we consider a cell 'fillable' (part of the 
+    populated area) if it is within 1.5km of at least one transit stop. This correctly
+    excludes oceans, deep lakes, and remote mountains without the huge memory footprint.
     """
-    lats = np.array([(south + north) / 2, south, south, north, north])
-    lons = np.array([(west + east) / 2, west, east, west, east])
-    return bool(np.any(globe.is_land(lats, lons)))
+    return len(nearest_stops(lat, lon, radius_m=1500, k=1)) > 0
 
 
 def _fill_empty(grid: np.ndarray, fillable: np.ndarray) -> np.ndarray:
@@ -109,27 +103,35 @@ def generate_heatmap_geojson(
     grid = np.full((n_lat, n_lon), np.nan)
     land = np.ones((n_lat, n_lon), dtype=bool)
 
-    for i in range(n_lat):
-        for j in range(n_lon):
-            south = lat_min + i * lat_step
-            west = lon_min + j * lon_step
-            north, east = south + lat_step, west + lon_step
+    import concurrent.futures
 
-            if exclude_water and not _is_land_cell(south, west, north, east):
-                land[i, j] = False
-                continue  # never scored, filled, or drawn
+    def _process_cell(args):
+        i, j = args
+        south = lat_min + i * lat_step
+        west = lon_min + j * lon_step
+        north, east = south + lat_step, west + lon_step
 
-            center = (float(south + lat_step / 2), float(west + lon_step / 2))
-            try:
-                response = compute_score(center, campus)
-            except Exception:
-                logger.exception("compute_score failed at %s", center)
-                continue  # stays NaN, filled from neighbors below
+        if exclude_water and not _is_fillable_cell(south + lat_step/2, west + lon_step/2):
+            return i, j, False, None
 
-            if fill_unreachable and _is_unreachable(response):
-                continue  # stays NaN, filled from neighbors below
+        center = (float(south + lat_step / 2), float(west + lon_step / 2))
+        try:
+            response = compute_score(center, campus)
+        except Exception:
+            logger.exception("compute_score failed at %s", center)
+            return i, j, True, None
 
-            grid[i, j] = float(response.score)
+        if fill_unreachable and _is_unreachable(response):
+            return i, j, True, None
+
+        return i, j, True, float(response.score)
+
+    cell_args = ((i, j) for i in range(n_lat) for j in range(n_lon))
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        for i, j, is_land, score in executor.map(_process_cell, cell_args):
+            land[i, j] = is_land
+            if score is not None:
+                grid[i, j] = score
 
     scored_mask = ~np.isnan(grid)
     if not scored_mask.any():
