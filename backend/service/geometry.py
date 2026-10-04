@@ -2,7 +2,7 @@
 
 route_path(points, costing) takes [[lon, lat], ...] and returns a [[lon, lat], ...] path
 that follows streets, or None if routing fails (callers then fall back to straight lines).
-costing is "pedestrian" for walks or "auto" for buses.
+costing is "pedestrian" for both walks and buses (to ignore vehicle turn restrictions).
 """
 import json
 import logging

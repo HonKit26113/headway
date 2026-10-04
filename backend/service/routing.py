@@ -138,7 +138,7 @@ def build_route_geojson(origin: tuple, campus: str) -> dict:
                 rail = name in RAIL_LINES
                 specs.append(_spec(
                     "ride", coords, line=name, color=color,
-                    costing=None if rail else "auto",
+                    costing=None if rail else "pedestrian",
                     path=track_path(name, coords[0], coords[-1]) if rail else None,
                 ))
             else:  # walk transfer

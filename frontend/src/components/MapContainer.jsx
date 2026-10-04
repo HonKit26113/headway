@@ -24,7 +24,7 @@ const DARK_STYLE = {
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
-export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnabled = false, onStopClick }) {
+export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnabled = false, stopsEnabled = true, onStopClick }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
@@ -162,6 +162,13 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
       map.remove()
     }
   }, []) // Map initializes once
+
+  // Handle stops toggling
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    map.setLayoutProperty('stops-layer', 'visibility', stopsEnabled ? 'visible' : 'none')
+  }, [stopsEnabled, mapReady])
 
   // Handle heatmap toggling & fetching
   useEffect(() => {
