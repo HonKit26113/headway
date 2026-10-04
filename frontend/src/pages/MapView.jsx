@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import MapContainer from '../components/MapContainer'
 import ScorePanel from '../components/ScorePanel'
 import Legend from '../components/Legend'
 import SearchBar from '../components/SearchBar'
 import CampusPicker from '../components/CampusPicker'
+import RouteLegend from '../components/RouteLegend'
 
 export default function MapView() {
   const [campus, setCampus] = useState('sfu')
@@ -12,12 +13,19 @@ export default function MapView() {
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const searchBarRef = useRef(null)
 
   return (
     <div className="flex h-screen bg-black">
       <div className="flex-1 relative">
-        <MapContainer campus={campus} pin={pin} heatmapEnabled={heatmapEnabled} />
+        <MapContainer
+          campus={campus}
+          pin={pin}
+          heatmapEnabled={heatmapEnabled}
+          onStopClick={(stop) => searchBarRef.current?.selectLocation(stop)}
+        />
         <SearchBar
+          ref={searchBarRef}
           campus={campus}
           onResult={setResult}
           onLocationSelect={setPin}
@@ -25,6 +33,7 @@ export default function MapView() {
           onSummaryLoadingChange={setSummaryLoading}
         />
         <CampusPicker campus={campus} onChange={setCampus} />
+        <RouteLegend />
         <div className="absolute bottom-6 left-6 z-10 flex items-center gap-4">
           <Legend />
           

@@ -24,11 +24,13 @@ const DARK_STYLE = {
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
-export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnabled = false }) {
+export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnabled = false, onStopClick }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
   const heatmapCacheRef = useRef({}) // campus -> GeoJSON (cache the data, not just a "loaded" flag)
+  const onStopClickRef = useRef(onStopClick)
+  onStopClickRef.current = onStopClick
   const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
@@ -131,6 +133,12 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
       map.on('mouseleave', 'stops-layer', () => {
         map.getCanvas().style.cursor = ''
         popup.remove()
+      })
+
+      map.on('click', 'stops-layer', (e) => {
+        const feature = e.features[0]
+        const [lon, lat] = feature.geometry.coordinates
+        onStopClickRef.current?.({ label: feature.properties.name, lat, lon })
       })
 
       // Hover a ride segment to see which line it is

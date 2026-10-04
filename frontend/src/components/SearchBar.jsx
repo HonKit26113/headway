@@ -1,8 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, forwardRef, useImperativeHandle } from 'react'
 import { fetchScore, fetchSummary, ScoreApiError } from '../lib/api'
 import { useGeocode } from '../hooks/useGeocode'
 
-export default function SearchBar({ campus, onResult, onLocationSelect, onLoadingChange, onSummaryLoadingChange }) {
+const SearchBar = forwardRef(function SearchBar(
+  { campus, onResult, onLocationSelect, onLoadingChange, onSummaryLoadingChange },
+  ref
+) {
   const [address, setAddress] = useState('')
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
@@ -58,6 +61,10 @@ export default function SearchBar({ campus, onResult, onLocationSelect, onLoadin
     setHighlighted(-1)
     runScore(suggestion.label, { lat: suggestion.lat, lon: suggestion.lon })
   }
+
+  useImperativeHandle(ref, () => ({
+    selectLocation: (suggestion) => handleSelect(suggestion),
+  }))
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -173,4 +180,6 @@ export default function SearchBar({ campus, onResult, onLocationSelect, onLoadin
       )}
     </form>
   )
-}
+})
+
+export default SearchBar
