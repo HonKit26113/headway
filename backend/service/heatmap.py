@@ -3,9 +3,13 @@ import logging
 import numpy as np
 from global_land_mask import globe  # pip install global-land-mask
 
+import config
 from service.scoring import compute_score
 
 logger = logging.getLogger(__name__)
+
+# How far around the selected campus to grid, in degrees (~0.1 = ~11km)
+RADIUS_DEG = 0.1
 
 # Light -> dark ramp (higher score = darker)
 COLOR_RAMP = ["#fff5eb", "#fdd0a2", "#fd8d3c", "#d94801", "#7f2704"]
@@ -77,17 +81,24 @@ def _fill_empty(grid: np.ndarray, fillable: np.ndarray) -> np.ndarray:
 
 def generate_heatmap_geojson(
     campus: str,
-    lat_min: float = 49.00,
-    lat_max: float = 49.38,
-    lon_min: float = -123.50,
-    lon_max: float = -122.30,
+    lat_min: float | None = None,
+    lat_max: float | None = None,
+    lon_min: float | None = None,
+    lon_max: float | None = None,
     lat_step: float = 0.02,
     score_min: float | None = None,   # set both to fix the scale (e.g. 0 and 10)
     score_max: float | None = None,
     fill_unreachable: bool = True,    # also fill land cells with no route to campus
     exclude_water: bool = True,       # skip cells that are entirely over water
 ) -> dict:
-    """Grid of scored cells as GeoJSON. Empty land cells take the average of their neighbors."""
+    """Grid of scored cells as GeoJSON, centered on the campus. Empty land cells take the average of their neighbors."""
+    if lat_min is None or lat_max is None or lon_min is None or lon_max is None:
+        # Default to a box centered on the campus rather than all of Metro Vancouver -
+        # computing the whole region per request was OOM-killing the backend.
+        campus_lat, campus_lon = config.CAMPUS_COORDS[campus]
+        lat_min, lat_max = campus_lat - RADIUS_DEG, campus_lat + RADIUS_DEG
+        lon_min, lon_max = campus_lon - RADIUS_DEG, campus_lon + RADIUS_DEG
+
     # Make cells roughly square in meters: scale longitude step by 1/cos(lat)
     mid_lat = (lat_min + lat_max) / 2.0
     lon_step = lat_step / np.cos(np.radians(mid_lat))
