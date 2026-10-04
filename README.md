@@ -6,7 +6,7 @@ A neighbourhood transit scorer for students hunting off-campus housing. Get a 0-
 
 ![Headway scoring a real address, with the route and factor breakdown](docs/route-screenshot.png)
 
-**Live:** [headway-frontend-production.up.railway.app](https://headway-frontend-production.up.railway.app) — backend API at [headway-backend-production-582c.up.railway.app](https://headway-backend-production-582c.up.railway.app/docs)
+**Live:** [www.headwayhome.tech](https://www.headwayhome.tech/app) (custom domain) · also at [headway-frontend-production.up.railway.app](https://headway-frontend-production.up.railway.app/app) — backend API at [headway-backend-production-582c.up.railway.app/docs](https://headway-backend-production-582c.up.railway.app/docs)
 
 ---
 
@@ -29,7 +29,7 @@ We also didn't want a tool that only tells people what they want to hear. One re
 
 Scope was tight for a 24-hour build, so a few things are rough edges rather than missing entirely:
 
-- **Heatmap** uses a server-computed score grid (no H3 — it fails to build on Windows via CMake, so we avoided it entirely) rather than the originally planned hex-grid approach. It works, but water-masking near coastlines isn't pixel-perfect.
+- **Heatmap** uses a server-computed score grid (no H3 — it fails to build on Windows via CMake, so we avoided it entirely) rather than the originally planned hex-grid approach. Water is excluded using a "is there a real transit stop within 1.5km" heuristic instead of a land-mask dataset (the first version used `global_land_mask`, which OOM-killed the backend on Railway's free tier — swapped for a zero-memory-footprint check reusing data already in memory). Very remote land with no nearby stops at all will read as excluded too, which is an acceptable trade for actually working in production.
 - **Geocoding** is bounded to Metro Vancouver by design — addresses outside the region correctly return "not found" rather than a wrong answer.
 - Full reasoning and the scope-cut log: [`headway-claude.md`](headway-claude.md).
 
@@ -79,7 +79,7 @@ Full interactive docs at `/docs` once the backend is running (FastAPI auto-gener
 - **Backend:** FastAPI, Python 3.11, real TransLink GTFS data, Gemini API (verdict generation)
 - **Frontend:** React, Vite, React Router, MapLibre GL (map, route lines, heatmap), Tailwind CSS
 - **Geocoding:** Nominatim, bounded to Metro Vancouver
-- **Deployment:** Railway (planned, not yet live)
+- **Deployment:** Railway, custom domain via a free MLH `.tech` domain (both backend and frontend as separate services)
 
 ---
 
