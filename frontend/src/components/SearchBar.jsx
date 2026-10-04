@@ -66,27 +66,50 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
     }
   }
 
+  const handleClear = () => {
+    requestIdRef.current++ // invalidate any in-flight request
+    setAddress('')
+    setOpen(false)
+    setHighlighted(-1)
+    setError(null)
+    setLoading(false)
+    onResult(null)
+    onLocationSelect?.(null)
+  }
+
   return (
     <form onSubmit={handleSubmit} className="absolute top-6 left-6 right-6 z-10">
       <div className="relative">
         <div className="flex gap-2">
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => {
-              setAddress(e.target.value)
-              setOpen(true)
-              setHighlighted(-1)
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => {
-              blurTimeout.current = setTimeout(() => setOpen(false), 150)
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter an address..."
-            className="flex-1 rounded-full px-5 py-3 text-white placeholder-gray focus:outline-none"
-            style={{ background: 'rgba(11,11,12,0.92)', border: '1px solid #2a2a2e' }}
-          />
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => {
+                setAddress(e.target.value)
+                setOpen(true)
+                setHighlighted(-1)
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => {
+                blurTimeout.current = setTimeout(() => setOpen(false), 150)
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Enter an address..."
+              className="w-full rounded-full pl-5 pr-11 py-3 text-white placeholder-gray focus:outline-none"
+              style={{ background: 'rgba(11,11,12,0.92)', border: '1px solid #2a2a2e' }}
+            />
+            {address && (
+              <button
+                type="button"
+                onClick={handleClear}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full text-gray hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            )}
+          </div>
           <button
             type="submit"
             disabled={loading}
