@@ -3,6 +3,8 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { CAMPUS_COORDS } from '../lib/campuses'
 
+const API = 'http://127.0.0.1:8000'
+
 // Esri's free dark basemap - no API key needed. Matches the dark map
 // preview used on the landing page's About section.
 const DARK_STYLE = {
@@ -77,6 +79,46 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
         'stops-layer' // Insert BEFORE stops-layer so pins render on top
       )
 
+      // 4. Route from the pin to campus: rides are solid and colored per line,
+      //    walks are dashed. Inserted before stops-layer so stop dots stay on top.
+      map.addSource('route-source', { type: 'geojson', data: EMPTY_FC })
+      map.addLayer(
+        {
+          id: 'route-ride-casing',
+          type: 'line',
+          source: 'route-source',
+          filter: ['==', ['get', 'type'], 'ride'],
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': '#0b0b0c', 'line-width': 8, 'line-opacity': 0.8 },
+        },
+        'stops-layer'
+      )
+      map.addLayer(
+        {
+          id: 'route-ride',
+          type: 'line',
+          source: 'route-source',
+          filter: ['==', ['get', 'type'], 'ride'],
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': ['coalesce', ['get', 'color'], '#ff5a2e'], 'line-width': 4.5 },
+        },
+        'stops-layer'
+      )
+      map.addLayer(
+        {
+          id: 'route-walk',
+          type: 'line',
+          source: 'route-source',
+          filter: ['==', ['get', 'type'], 'walk'],
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 2.5,
+            'line-dasharray': [1.5, 1.5],
+          },
+        },
+        'stops-layer'
+      )
+
       const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false })
       map.on('mouseenter', 'stops-layer', (e) => {
         map.getCanvas().style.cursor = 'pointer'
@@ -87,6 +129,19 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
           .addTo(map)
       })
       map.on('mouseleave', 'stops-layer', () => {
+        map.getCanvas().style.cursor = ''
+        popup.remove()
+      })
+
+      // Hover a ride segment to see which line it is
+      map.on('mouseenter', 'route-ride', (e) => {
+        map.getCanvas().style.cursor = 'pointer'
+        popup
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="font-family: Geist, sans-serif; color: rgb(0,0,0); font-size: 13px;">${e.features[0].properties.line}</div>`)
+          .addTo(map)
+      })
+      map.on('mouseleave', 'route-ride', () => {
         map.getCanvas().style.cursor = ''
         popup.remove()
       })
@@ -122,7 +177,7 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
     source.setData(EMPTY_FC)
 
     let cancelled = false
-    fetch(`http://127.0.0.1:8000/api/heatmap?campus=${campus}`)
+    fetch(`${API}/api/heatmap?campus=${campus}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
@@ -138,6 +193,43 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
       cancelled = true
     }
   }, [heatmapEnabled, campus, mapReady])
+
+  // Route from the pin to campus
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const source = map.getSource('route-source')
+    if (!source) return
+
+    if (!pin) {
+      source.setData(EMPTY_FC)
+      return
+    }
+
+    let cancelled = false
+    fetch(`${API}/api/route?lat=${pin.lat}&lon=${pin.lon}&campus=${campus}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then((data) => {
+        if (cancelled) return
+        source.setData(data)
+
+        // Zoom to fit the whole journey
+        const bounds = new maplibregl.LngLatBounds()
+        data.features.forEach((f) => f.geometry.coordinates.forEach((c) => bounds.extend(c)))
+        if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 80, maxZoom: 15 })
+      })
+      .catch((e) => {
+        console.error('Failed to load route:', e)
+        if (!cancelled) source.setData(EMPTY_FC)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [pin, campus, mapReady])
 
   useEffect(() => {
     if (!mapRef.current || pin) return
