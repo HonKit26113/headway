@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react'
-import { fetchScore, ScoreApiError } from '../lib/api'
+import { fetchScore, fetchSummary, ScoreApiError } from '../lib/api'
 import { useGeocode } from '../hooks/useGeocode'
 
-export default function SearchBar({ campus, onResult, onLocationSelect, onLoadingChange }) {
+export default function SearchBar({ campus, onResult, onLocationSelect, onLoadingChange, onSummaryLoadingChange }) {
   const [address, setAddress] = useState('')
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
@@ -25,10 +25,9 @@ export default function SearchBar({ campus, onResult, onLocationSelect, onLoadin
     onResult(null) // clear any previous result so stale data can't linger on failure
     if (location) onLocationSelect?.(location)
 
+    let data
     try {
-      const data = await fetchScore(addressText, campus)
-      if (thisRequest !== requestIdRef.current) return // a newer search superseded this one
-      onResult({ ...data, address: addressText, isSample: false })
+      data = await fetchScore(addressText, campus)
     } catch (err) {
       if (thisRequest !== requestIdRef.current) return
       if (err instanceof ScoreApiError && err.status === 400) {
@@ -36,8 +35,20 @@ export default function SearchBar({ campus, onResult, onLocationSelect, onLoadin
       } else {
         setError('Could not reach the scoring service. Try again in a moment.')
       }
-    } finally {
-      if (thisRequest === requestIdRef.current) updateLoading(false)
+      updateLoading(false)
+      return
+    }
+
+    if (thisRequest !== requestIdRef.current) return
+    // Show the score immediately - don't make the user wait on the verdict too
+    onResult({ ...data, address: addressText, isSample: false, summary: null })
+    updateLoading(false)
+
+    onSummaryLoadingChange?.(true)
+    const summary = await fetchSummary(data.score, data.factors, campus)
+    if (thisRequest === requestIdRef.current) {
+      onResult({ ...data, address: addressText, isSample: false, summary })
+      onSummaryLoadingChange?.(false)
     }
   }
 
@@ -78,6 +89,7 @@ export default function SearchBar({ campus, onResult, onLocationSelect, onLoadin
     setHighlighted(-1)
     setError(null)
     updateLoading(false)
+    onSummaryLoadingChange?.(false)
     onResult(null)
     onLocationSelect?.(null)
   }
