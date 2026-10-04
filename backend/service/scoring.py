@@ -8,6 +8,7 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     lat, lon = origin
     stops = nearest_stops(lat, lon, radius_m=300)
     shortest_time_to_dest = math.inf
+    best_headway = math.inf
     headways = []
     last_departure = 0
     best_walk_m = math.inf
@@ -24,6 +25,8 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
             continue
         if stats.headway_min is not None:
             headways.append(stats.headway_min)
+            if stats.headway_min < best_headway:
+                best_headway = stats.headway_min
         if stats.last_departure_min is not None and stats.last_departure_min > last_departure:
             last_departure = stats.last_departure_min
 
@@ -35,6 +38,9 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     latenight_score = get_latenight_score(last_departure)
     walk_score = get_walk_score(shortest_walk_min)
 
+    if best_headway is math.inf:
+        best_headway = "---"
+        
     final_score = (
         commute_score * 0.3 +     
         frequency_score * 0.3 +      
@@ -43,10 +49,11 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     )
 
     factors = [
-        Factor(label="Commute", value=f"{int(shortest_time_to_dest)} min", percent=int(commute_score * 10)),
-        Factor(label="Bus frequency", value=f"every {int(avg_headway)} min", percent=int(frequency_score * 10)),
-        Factor(label="Late-night service", value=f"until {int(last_departure // 60)}:{int(last_departure % 60):02d}", percent=int(latenight_score * 10)),
-        Factor(label="Walk to stop", value=f"{int(shortest_walk_min)} min", percent=int(walk_score * 10)),
+        Factor(label="Commute to campus", value=f"{int(shortest_time_to_dest)} min", percent=int(commute_score * 10)),
+        Factor(label="Average frequency", value=f"every {int(avg_headway)} min", percent=int(frequency_score * 10)),
+        Factor(label="Peak frequency", value=f"every {int(best_headway)} min", percent=0),
+        Factor(label="Last trip home", value=f"until {int((last_departure // 60) % 24):02d}:{int(last_departure % 60):02d}", percent=int(latenight_score * 10)),
+        Factor(label="Walk to nearest stop", value=f"{int(shortest_walk_min)} min", percent=int(walk_score * 10)),
     ]
 
     return ScoreResponse(score=round(final_score, 1), factors=factors)
