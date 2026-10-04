@@ -1,7 +1,7 @@
 import math
 
 from api.models import ScoreResponse, Factor
-from service.transit import nearest_stops, stop_stats, commute_minutes
+from service.transit import nearest_stops, stop_stats, commute_minutes, commute_routes
 
 
 def compute_score(origin: tuple, campus: str) -> ScoreResponse:
@@ -12,6 +12,7 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     headways = []
     last_departure = 0
     best_walk_m = math.inf
+    best_stop_id = None
     for stop, walk_distance_m in stops:
         time = commute_minutes(stop.stop_id, campus)
         if time is None:
@@ -19,6 +20,7 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
         if time <= shortest_time_to_dest:
             shortest_time_to_dest = time
             best_walk_m = walk_distance_m
+            best_stop_id = stop.stop_id
 
         stats = stop_stats(stop.stop_id)
         if stats is None:
@@ -54,8 +56,15 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     best_headway_str = "N/A" if best_headway == "---" else f"every {int(best_headway)} min"
     walk_str = "N/A" if math.isinf(shortest_walk_min) else f"{int(shortest_walk_min)} min"
     
+    if best_stop_id is not None:
+        routes = commute_routes(best_stop_id, campus)
+        shortest_route = ' → '.join(routes) if routes else "Walk"
+    else:
+        shortest_route = "N/A"
+
     factors = [
         Factor(label="Commute to campus", value=commute_str, percent=int(commute_score * 10)),
+        Factor(label="Most direct route", value=shortest_route, percent=0),
         Factor(label="Average frequency", value=avg_headway_str, percent=int(frequency_score * 10)),
         Factor(label="Peak frequency", value=best_headway_str, percent=0),
         Factor(label="Last trip home", value=f"until {int((last_departure // 60) % 24):02d}:{int(last_departure % 60):02d}", percent=int(latenight_score * 10)),

@@ -138,7 +138,9 @@ def make_trips(rows: list[tuple[str, str, str, str]]) -> pd.DataFrame:
 
 def run(stops, st_rows, trips, *, service_ids=frozenset({"WK"}), pickup_drop=True, **kw):
     st = make_stop_times(st_rows, pickup_drop=pickup_drop)
-    return commute_from_all_stops(stops, st, make_trips(trips), set(service_ids), CAMPUS, **kw)
+    routes = pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+    res = commute_from_all_stops(stops, st, make_trips(trips), routes, set(service_ids), CAMPUS, **kw)
+    return {k: v["minutes"] for k, v in res.items()}
 
 
 def approx(minutes: float):
@@ -753,8 +755,9 @@ class TestResultContract:
         st = make_stop_times(rows)
         tr = make_trips(trips)
         sids = {"WK"}
+        routes = pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
         before = (stops.copy(deep=True), st.copy(deep=True), tr.copy(deep=True), copy.deepcopy(sids))
-        commute_from_all_stops(stops, st, tr, sids, CAMPUS)
+        commute_from_all_stops(stops, st, tr, routes, sids, CAMPUS)
         pd.testing.assert_frame_equal(stops, before[0])
         pd.testing.assert_frame_equal(st, before[1])
         pd.testing.assert_frame_equal(tr, before[2])

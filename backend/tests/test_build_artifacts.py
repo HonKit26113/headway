@@ -358,15 +358,15 @@ class TestBuildCommute:
         Whatever it returns is what lands in commute_<name>.json."""
         calls = []
 
-        def spy(stops, stop_times, trips, service_ids, campus_latlon, **kw):
-            calls.append((stops.copy(), stop_times.copy(), trips.copy(), set(service_ids),
+        def spy(stops, stop_times, trips, routes, service_ids, campus_latlon, **kw):
+            calls.append((stops.copy(), stop_times.copy(), trips.copy(), routes.copy(), set(service_ids),
                           tuple(campus_latlon)))
             return {"1173": 12.3}
 
         patch_commute(monkeypatch, spy)
         m = build(feed_zip, out_dir, today="20261003", campuses=CAMPUSES)
         assert len(calls) == 1
-        stops, stop_times, trips, sids, latlon = calls[0]
+        stops, stop_times, trips, routes, sids, latlon = calls[0]
         assert sids == {"1"}
         assert latlon == pytest.approx((49.2260, -123.0041))
         assert set(stops["stop_id"]) == set(EXPECTED_STOPS)

@@ -63,20 +63,31 @@ def _patterns(stop_times, trips, service_ids):
     return st.reset_index(drop=True)
 
 
-def commute_from_all_stops(stops, stop_times, trips, service_ids, campus_latlon, *,
+def commute_from_all_stops(stops, stop_times, trips, routes, service_ids, campus_latlon, *,
                            campus_radius_m=CAMPUS_RADIUS_M, transfer_m=TRANSFER_RADIUS_M,
-                           board_penalty_s=BOARD_PENALTY_S, walk_mps=WALK_MPS) -> dict[str, float]:
-    """Minutes from every stop that can reach campus. See CONTRACT.md for the model."""
+                           board_penalty_s=BOARD_PENALTY_S, walk_mps=WALK_MPS) -> dict[str, dict]:
+    """Minutes from every stop that can reach campus, plus the lines to take.
+    See CONTRACT.md for the model.
+
+    Returns {stop_id: {"minutes": float, "routes": [line, ...]}}, ready for
+    json.dump. "routes" is the lines to take, in order, for the journey that
+    produced "minutes", e.g. {"minutes": 31.4, "routes": ["R5", "145"]}.
+    A walk-only journey has "routes": []. Walking transfers are not listed.
+
+    Line labels come from the routes table (GTFS routes.txt): route_short_name,
+    or route_long_name when there is no short name (e.g. "145", "Expo Line").
+    A route_id missing from the table is shown as the raw id.
+    """
     st = _patterns(stop_times, trips, service_ids)
     stop_ids = list(dict.fromkeys(list(stops["stop_id"].astype(str)) + list(st["stop_id"].astype(str))))
     stand = {s: i for i, s in enumerate(stop_ids)}  # node id for "standing at stop s"
 
     # Ride hops between consecutive stops of each trip; median duration per (pattern, A, B).
-    nxt = st.groupby("trip_id", sort=False)
+    nxt_stop = st.groupby("trip_id", sort=False)
     hops = pd.DataFrame({
         "route_id": st["route_id"], "direction_id": st["direction_id"],
-        "a": st["stop_id"], "b": nxt["stop_id"].shift(-1),
-        "dur": nxt["arrival_s"].shift(-1).astype("Float64") - st["departure_s"].astype("Float64"),
+        "a": st["stop_id"], "b": nxt_stop["stop_id"].shift(-1),
+        "dur": nxt_stop["arrival_s"].shift(-1).astype("Float64") - st["departure_s"].astype("Float64"),
     }).dropna(subset=["b", "dur"])
     leaves = st["departure_s"].astype("Float64")
     daytime = (leaves >= DAY_START) & (leaves < DAY_END)  # NightBus run times would be unrealistically fast
@@ -92,7 +103,9 @@ def commute_from_all_stops(stops, stop_times, trips, service_ids, campus_latlon,
     on: dict[tuple, int] = {}  # node id for "on board pattern p at stop s"
     for k in sorted(set(key)):
         on[k] = len(stop_ids) + len(on)
-    n = len(stop_ids) + len(on)
+    n_stand = len(stop_ids)
+    n = n_stand + len(on)
+    on_key = {node: k for k, node in on.items()}  # node id -> (stop, route, direction)
 
     # Reverse graph: rev[v] = [(u, cost)] for every forward edge u -> v.
     rev: list[list[tuple[int, float]]] = [[] for _ in range(n)]
@@ -117,6 +130,7 @@ def commute_from_all_stops(stops, stop_times, trips, service_ids, campus_latlon,
     }
 
     dist = [np.inf] * n
+    nxt = [-1] * n  # nxt[u] = next node on u's best path toward campus (-1 at a campus stop)
     heap = []
     for s, sec in campus_walk.items():
         dist[stand[s]] = sec
@@ -129,19 +143,138 @@ def commute_from_all_stops(stops, stop_times, trips, service_ids, campus_latlon,
         for u, w in rev[v]:
             if d + w < dist[u]:
                 dist[u] = d + w
+                nxt[u] = v  # forward edge u -> v is the first step of u's best path
                 heapq.heappush(heap, (d + w, u))
 
     # Journey cost from an origin: walk straight to campus, or board here / one walk away for free.
-    first_board = defaultdict(lambda: np.inf)  # best on-board cost at stop s, first boarding free
+    # `how` records which option won so the route can be rebuilt afterwards.
+    first_board: dict[str, tuple[float, int]] = {}  # stop -> (best on-board cost, node), first boarding free
     for k, node in on.items():
-        if k in board_ok:
-            first_board[k[0]] = min(first_board[k[0]], dist[node])
-    best = dict(first_board)
+        if k in board_ok and dist[node] < first_board.get(k[0], (np.inf, -1))[0]:
+            first_board[k[0]] = (dist[node], node)
+    best: dict[str, float] = {}
+    how: dict[str, tuple] = {}
+    for s, (cost, node) in first_board.items():
+        best[s] = cost
+        how[s] = ("ride", node)
     for a, b, m in walks:
         if b in first_board:
-            best[a] = min(best.get(a, np.inf), m / walk_mps + first_board[b])
+            walk_s = m / walk_mps
+            cost = walk_s + first_board[b][0]
+            if cost < best.get(a, np.inf):
+                best[a] = cost
+                how[a] = ("walk_ride", b, walk_s, first_board[b][1])
     for s, sec in campus_walk.items():
-        best[s] = min(best.get(s, np.inf), sec)
+        if sec < best.get(s, np.inf):
+            best[s] = sec
+            how[s] = ("walk_campus", sec)
 
     known = set(stops["stop_id"].astype(str))  # stop_times ids missing from stops never reach the output
-    return {s: round(sec / 60, 1) for s, sec in sorted(best.items()) if s in known and np.isfinite(sec)}
+    minutes = {s: round(sec / 60, 1) for s, sec in sorted(best.items()) if s in known and np.isfinite(sec)}
+
+    short = routes["route_short_name"].fillna("").astype(str).str.strip()
+    long = routes["route_long_name"].fillna("").astype(str).str.strip()
+    names = dict(zip(routes["route_id"].astype(str).str.strip(), short.where(short != "", long)))
+
+    def route_for(origin):
+        """Lines to take, in order: follow nxt pointers and note each pattern we ride."""
+        kind = how[origin]
+        if kind[0] == "walk_campus":
+            return []
+        node = kind[1] if kind[0] == "ride" else kind[3]  # first on-board node
+
+        lines = []
+        while node != -1:
+            after = nxt[node]
+            if node >= n_stand and after >= n_stand:  # on-board -> on-board: a real ride hop
+                route = str(on_key[node][1])
+                line = str(names.get(route, route))
+                if not lines or lines[-1] != line:  # one entry per boarding
+                    lines.append(line)
+            node = after
+        return lines
+
+    return {s: {"minutes": m, "routes": route_for(s)} for s, m in minutes.items()}
+
+# def commute_from_all_stops(stops, stop_times, trips, service_ids, campus_latlon, *,
+#                            campus_radius_m=CAMPUS_RADIUS_M, transfer_m=TRANSFER_RADIUS_M,
+#                            board_penalty_s=BOARD_PENALTY_S, walk_mps=WALK_MPS) -> dict[str, float]:
+#     """Minutes from every stop that can reach campus. See CONTRACT.md for the model."""
+#     st = _patterns(stop_times, trips, service_ids)
+#     stop_ids = list(dict.fromkeys(list(stops["stop_id"].astype(str)) + list(st["stop_id"].astype(str))))
+#     stand = {s: i for i, s in enumerate(stop_ids)}  # node id for "standing at stop s"
+
+#     # Ride hops between consecutive stops of each trip; median duration per (pattern, A, B).
+#     nxt = st.groupby("trip_id", sort=False)
+#     hops = pd.DataFrame({
+#         "route_id": st["route_id"], "direction_id": st["direction_id"],
+#         "a": st["stop_id"], "b": nxt["stop_id"].shift(-1),
+#         "dur": nxt["arrival_s"].shift(-1).astype("Float64") - st["departure_s"].astype("Float64"),
+#     }).dropna(subset=["b", "dur"])
+#     leaves = st["departure_s"].astype("Float64")
+#     daytime = (leaves >= DAY_START) & (leaves < DAY_END)  # NightBus run times would be unrealistically fast
+#     hops = hops[(hops["dur"] >= 0) & daytime.loc[hops.index].fillna(False)]
+#     hop_time = hops.groupby(["route_id", "direction_id", "a", "b"], sort=True)["dur"].median()
+
+#     can_board = st["pickup_type"] != "1" if "pickup_type" in st else pd.Series(True, index=st.index)
+#     can_alight = st["drop_off_type"] != "1" if "drop_off_type" in st else pd.Series(True, index=st.index)
+#     key = list(zip(st["stop_id"], st["route_id"], st["direction_id"]))
+#     board_ok = {k for k, ok in zip(key, can_board) if ok}
+#     alight_ok = {k for k, ok in zip(key, can_alight) if ok}
+
+#     on: dict[tuple, int] = {}  # node id for "on board pattern p at stop s"
+#     for k in sorted(set(key)):
+#         on[k] = len(stop_ids) + len(on)
+#     n = len(stop_ids) + len(on)
+
+#     # Reverse graph: rev[v] = [(u, cost)] for every forward edge u -> v.
+#     rev: list[list[tuple[int, float]]] = [[] for _ in range(n)]
+#     for (route, direction, a, b), dur in hop_time.items():
+#         rev[on[(b, route, direction)]].append((on[(a, route, direction)], float(dur)))
+#     for k, node in on.items():
+#         if k in board_ok:  # stand s -> on (s, p) costs a boarding wait
+#             rev[node].append((stand[k[0]], float(board_penalty_s)))
+#         if k in alight_ok:  # on (s, p) -> stand s is free
+#             rev[stand[k[0]]].append((node, 0.0))
+#     walks = walking_pairs(stops, transfer_m)
+#     for a, b, m in walks:
+#         rev[stand[b]].append((stand[a], m / walk_mps))
+
+#     # Campus targets: stops within campus_radius_m walk to the campus point.
+#     lat0, lon0 = campus_latlon
+#     s_lat = stops["stop_lat"].to_numpy(dtype=float)
+#     s_lon = stops["stop_lon"].to_numpy(dtype=float)
+#     to_campus = _haversine_m(s_lat, s_lon, lat0, lon0)
+#     campus_walk = {
+#         str(s): float(m) / walk_mps for s, m in zip(stops["stop_id"], to_campus) if m <= campus_radius_m
+#     }
+
+#     dist = [np.inf] * n
+#     heap = []
+#     for s, sec in campus_walk.items():
+#         dist[stand[s]] = sec
+#         heap.append((sec, stand[s]))
+#     heapq.heapify(heap)
+#     while heap:
+#         d, v = heapq.heappop(heap)
+#         if d > dist[v]:
+#             continue
+#         for u, w in rev[v]:
+#             if d + w < dist[u]:
+#                 dist[u] = d + w
+#                 heapq.heappush(heap, (d + w, u))
+
+#     # Journey cost from an origin: walk straight to campus, or board here / one walk away for free.
+#     first_board = defaultdict(lambda: np.inf)  # best on-board cost at stop s, first boarding free
+#     for k, node in on.items():
+#         if k in board_ok:
+#             first_board[k[0]] = min(first_board[k[0]], dist[node])
+#     best = dict(first_board)
+#     for a, b, m in walks:
+#         if b in first_board:
+#             best[a] = min(best.get(a, np.inf), m / walk_mps + first_board[b])
+#     for s, sec in campus_walk.items():
+#         best[s] = min(best.get(s, np.inf), sec)
+
+#     known = set(stops["stop_id"].astype(str))  # stop_times ids missing from stops never reach the output
+#     return {s: round(sec / 60, 1) for s, sec in sorted(best.items()) if s in known and np.isfinite(sec)}

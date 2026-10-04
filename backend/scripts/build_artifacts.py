@@ -106,6 +106,7 @@ def build(zip_path: Path, out_dir: Path, *, today: str | None = None, campuses: 
         service_date = pick_service_date(info["feed_start_date"], info["feed_end_date"], today)
         stops = gtfs.load_stops(zf)
         trips = gtfs.load_trips(zf)
+        routes = gtfs.read_table(zf, "routes.txt") # <--- Add this!
         service_ids = gtfs.active_service_ids(zf, service_date)
         wanted = {"trip_id", "stop_id", "stop_sequence", "arrival_time", "departure_time",
                   "pickup_type", "drop_off_type"}
@@ -114,7 +115,7 @@ def build(zip_path: Path, out_dir: Path, *, today: str | None = None, campuses: 
         stop_times["departure_s"] = gtfs.parse_gtfs_times(stop_times.pop("departure_time"))
         stats = gtfs.build_stop_stats(stop_times, trips, service_ids)
         commutes = {
-            name: graph.commute_from_all_stops(stops, stop_times, trips, service_ids, tuple(latlon))
+            name: graph.commute_from_all_stops(stops, stop_times, trips, routes, service_ids, tuple(latlon))
             for name, latlon in campuses.items()
         }
 
