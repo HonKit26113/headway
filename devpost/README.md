@@ -1,5 +1,7 @@
 # Headway: Find Your Commute
 
+**Live:** https://headway-frontend-production.up.railway.app/app
+
 ## Inspiration
 
 Every student housing search comes down to the same blind trade-off: cheaper rent usually means a worse commute, but nobody finds out *how much* worse until they've already signed the lease and missed their first 8:30am class because the bus only comes every 30 minutes. Distance-to-campus on a map doesn't tell you that. A walk score doesn't tell you that. We wanted one honest number that does — built from the actual transit schedule, not a straight-line guess.
@@ -54,7 +56,6 @@ Four people split cleanly along the data pipeline: GTFS ingestion and the transi
 - A compare tool: side-by-side scores for multiple listings
 - Expand beyond SFU to UBC and BCIT as full first-class campuses
 - Pixel-perfect water-masking on the heatmap (currently close, not exact, near coastlines)
-- Deploy it somewhere real instead of `localhost`
 
 ## Team
 

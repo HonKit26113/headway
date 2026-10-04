@@ -6,7 +6,7 @@ A neighbourhood transit scorer for students hunting off-campus housing. Get a 0-
 
 ![Landing page preview](docs/landing-preview.png)
 
-**Live:** not deployed yet — Railway deployment is planned but hasn't happened. Run it locally for now (see Setup below).
+**Live:** [headway-frontend-production.up.railway.app](https://headway-frontend-production.up.railway.app) — backend API at [headway-backend-production-582c.up.railway.app](https://headway-backend-production-582c.up.railway.app/docs)
 
 ---
 
