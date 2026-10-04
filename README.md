@@ -6,7 +6,9 @@ A neighbourhood transit scorer for students hunting off-campus housing. Get a 0-
 
 ![Headway scoring a real address, with the route and factor breakdown](docs/route-screenshot.png)
 
-**Live:** [headway-frontend-production.up.railway.app](https://headway-frontend-production.up.railway.app) — backend API at [headway-backend-production-582c.up.railway.app](https://headway-backend-production-582c.up.railway.app/docs)
+That's a real search, not a mockup: an address on Northbound Canada Way scores **6.7/10** for a commute to SFU. The score isn't just "50 minutes = bad" — it's a weighted blend of the four factors shown in the panel. A 2-minute walk to the nearest stop and buses every 10–12 minutes both pull the score up; the 50-minute ride itself pulls it down. Headway shows that breakdown instead of hiding it behind one number, so you can see *why* it scored 6.7, not just that it did — including the actual bus routes (123 → 144) and a plain-English verdict summarizing the trade-off.
+
+**Live:** [www.headwayhome.tech](https://www.headwayhome.tech/app) (custom domain) · also at [headway-frontend-production.up.railway.app](https://headway-frontend-production.up.railway.app/app) — backend API at [headway-backend-production-582c.up.railway.app/docs](https://headway-backend-production-582c.up.railway.app/docs)
 
 ---
 
@@ -29,9 +31,8 @@ We also didn't want a tool that only tells people what they want to hear. One re
 
 Scope was tight for a 24-hour build, so a few things are rough edges rather than missing entirely:
 
-- **Heatmap** uses a server-computed score grid (no H3 — it fails to build on Windows via CMake, so we avoided it entirely) rather than the originally planned hex-grid approach. It works, but water-masking near coastlines isn't pixel-perfect.
+- **Heatmap** uses a server-computed score grid (no H3 — it fails to build on Windows via CMake, so we avoided it entirely) rather than the originally planned hex-grid approach. Water is excluded using a "is there a real transit stop within 1.5km" heuristic instead of a land-mask dataset (the first version used `global_land_mask`, which OOM-killed the backend on Railway's free tier — swapped for a zero-memory-footprint check reusing data already in memory). Very remote land with no nearby stops at all will read as excluded too, which is an acceptable trade for actually working in production.
 - **Geocoding** is bounded to Metro Vancouver by design — addresses outside the region correctly return "not found" rather than a wrong answer.
-- Full reasoning and the scope-cut log: [`headway-claude.md`](headway-claude.md).
 
 ---
 
@@ -79,17 +80,10 @@ Full interactive docs at `/docs` once the backend is running (FastAPI auto-gener
 - **Backend:** FastAPI, Python 3.11, real TransLink GTFS data, Gemini API (verdict generation)
 - **Frontend:** React, Vite, React Router, MapLibre GL (map, route lines, heatmap), Tailwind CSS
 - **Geocoding:** Nominatim, bounded to Metro Vancouver
-- **Deployment:** Railway (planned, not yet live)
+- **Deployment:** Railway, custom domain via a free MLH `.tech` domain (both backend and frontend as separate services)
 
 ---
 
-## Roles
+## Team
 
 ![The Headway team](docs/team-screenshot.png)
-
-- **BE1:** Scoring & geospatial logic
-- **BE2:** GTFS data pipeline
-- **FE:** Map UI & React components
-- **GEN:** Landing page, QA, demo
-
-See [`headway-claude.md`](headway-claude.md) for the full project spec.
