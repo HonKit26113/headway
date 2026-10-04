@@ -79,6 +79,11 @@ def _route_chunk(points: list[list[float]], costing: str) -> list[list[float]]:
     path: list[list[float]] = []
     for leg in data["trip"]["legs"]:
         path.extend(_decode_polyline(leg["shape"]))
+        
+    limit = 1.5 if costing == "bus" else MAX_DETOUR
+    if len(path) > 1 and _length_m(path) > limit * max(_length_m(points), 1.0):
+        raise RuntimeError(f"detour exceeded {limit}x limit")
+        
     return path
 
 
@@ -137,10 +142,6 @@ def route_path(points: list[list[float]], costing: str) -> list[list[float]] | N
         if path and part and path[-1] == part[0]:
             part = part[1:]  # chunks share an endpoint
         path.extend(part)
-
-    if len(path) < 2 or _length_m(path) > MAX_DETOUR * max(_length_m(points), 1.0):
-        logger.warning("discarding implausible routed path (%s, %d points)", costing, len(points))
-        return None
 
     _cache[key] = path
     return path
