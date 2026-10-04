@@ -65,35 +65,12 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="flex-1 w-full relative">
+          <div className="flex-1 w-full">
             <img
-              src="/map-preview-dark.png"
-              alt="Map preview centered on SFU"
+              src="/route-preview.png"
+              alt="Headway scoring a real address, with the route and factor breakdown"
               className="w-full rounded-2xl border border-gray/30"
             />
-            <svg
-              viewBox="0 0 768 768"
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              fill="none"
-            >
-              <path
-                d="M 60 600 C 220 520, 260 420, 400 400 S 600 320, 700 180"
-                stroke="#FF5A2E"
-                strokeWidth="4"
-                strokeLinecap="round"
-                opacity="0.85"
-              />
-              <path
-                d="M 100 120 C 220 220, 380 260, 420 400 S 520 600, 680 680"
-                stroke="#FF5A2E"
-                strokeWidth="4"
-                strokeLinecap="round"
-                opacity="0.6"
-              />
-              {[[60,600],[400,400],[700,180],[100,120],[680,680]].map(([cx, cy]) => (
-                <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="6" fill="#FF5A2E" />
-              ))}
-            </svg>
           </div>
         </div>
       </section>
