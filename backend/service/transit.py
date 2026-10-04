@@ -96,11 +96,17 @@ def _parse_stats(raw) -> dict[str, StopStats]:
     }
 
 
-def _parse_commute(raw) -> dict[str, float]:
+def _parse_commute(raw) -> dict[str, dict]:
     if not isinstance(raw, dict):
         raise ValueError("commute file must be an object")
-    out = {str(sid): _finite(m) for sid, m in raw.items()}
-    if any(m < 0 for m in out.values()):
+    out = {}
+    for sid, m in raw.items():
+        if isinstance(m, dict):
+            out[str(sid)] = {"minutes": _finite(m["minutes"]), "routes": [str(r) for r in m.get("routes", [])]}
+        else:
+            out[str(sid)] = {"minutes": _finite(m), "routes": []}
+            
+    if any(m["minutes"] < 0 for m in out.values()):
         raise ValueError("negative commute")
     return out
 
@@ -183,19 +189,45 @@ def stop_stats(stop_id: str) -> StopStats | None:
     return _current().stats.get(stop_id)
 
 
+def _commute_entry(s, stop_id: str, campus: str) -> dict | None:
+    """{"minutes": float, "routes": [str, ...]} for a stop, or None if unknown/unreachable."""
+    entry = s.commute.get(campus, {}).get(stop_id)
+    if entry is None:
+        return None
+    if isinstance(entry, dict):
+        return entry
+    return {"minutes": float(entry), "routes": []}  # older files stored a bare number
+
+
 def commute_minutes(stop_id: str, campus: str) -> float | None:
     """Minutes from stop to campus; None if unknown stop or unreachable."""
     if campus not in config.CAMPUS_COORDS:
         raise ValueError(f"unknown campus {campus!r}")
     s = _current()
     if not s.fallback:
-        return s.commute.get(campus, {}).get(stop_id)
+        entry = _commute_entry(s, stop_id, campus)
+        return entry["minutes"] if entry else None
     stop = s.stops.get(stop_id)
     if stop is None:
         return None
     lat0, lon0 = config.CAMPUS_COORDS[campus]
     km = float(_haversine_m(stop.lat, stop.lon, lat0, lon0)) / 1000
     return round(km / FALLBACK_KMH * 60, 1)
+
+
+def commute_routes(stop_id: str, campus: str) -> list[str] | None:
+    """Lines to take from stop to campus, in order, e.g. ["Expo Line", "145"].
+
+    [] means the stop is within walking distance of campus. None means the stop
+    is unknown or unreachable, or the app is in fallback mode (no route data).
+    """
+    if campus not in config.CAMPUS_COORDS:
+        raise ValueError(f"unknown campus {campus!r}")
+    s = _current()
+    if s.fallback:
+        return None
+    entry = _commute_entry(s, stop_id, campus)
+    return entry["routes"] if entry else None
 
 
 def data_status() -> dict:
