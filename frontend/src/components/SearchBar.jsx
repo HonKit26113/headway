@@ -27,7 +27,12 @@ export default function SearchBar({ campus, onResult, onLocationSelect, onLoadin
 
     let data
     try {
-      data = await fetchScore(addressText, campus)
+      data = await fetchScore(
+        addressText,
+        campus,
+        location ? location.lat : undefined,
+        location ? location.lon : undefined
+      )
     } catch (err) {
       if (thisRequest !== requestIdRef.current) return
       if (err instanceof ScoreApiError && err.status === 400) {

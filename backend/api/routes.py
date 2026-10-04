@@ -7,13 +7,16 @@ router = APIRouter(prefix="/api")
 
 @router.post("/score")
 async def score(req: ScoreRequest) -> ScoreResponse:
-    try:
-        location = geocode(req.address)
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"geocoder unavailable: {e}")
+    if req.lat is not None and req.lon is not None:
+        location = type("Loc", (), {"lat": req.lat, "lon": req.lon})()
+    else:
+        try:
+            location = geocode(req.address)
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"geocoder unavailable: {e}")
 
-    if location is None:
-        raise HTTPException(status_code=400, detail="Address not found")
+        if location is None:
+            raise HTTPException(status_code=400, detail="Address not found")
 
     try:
         return compute_score((location.lat, location.lon), req.campus)
