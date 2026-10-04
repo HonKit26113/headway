@@ -9,14 +9,28 @@ export default function MapView() {
   const [campus, setCampus] = useState('sfu')
   const [result, setResult] = useState(null)
   const [pin, setPin] = useState(null)
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false)
 
   return (
     <div className="flex h-screen bg-black">
       <div className="flex-1 relative">
-        <MapContainer campus={campus} pin={pin} />
+        <MapContainer campus={campus} pin={pin} heatmapEnabled={heatmapEnabled} />
         <SearchBar campus={campus} onResult={setResult} onLocationSelect={setPin} />
         <CampusPicker campus={campus} onChange={setCampus} />
         <Legend />
+        
+        {/* Heatmap Toggle */}
+        <button
+          onClick={() => setHeatmapEnabled(!heatmapEnabled)}
+          className="absolute bottom-10 left-6 z-10 px-5 py-2.5 rounded-full font-medium transition-colors"
+          style={{
+            background: heatmapEnabled ? '#FF5A2E' : 'rgba(11,11,12,0.92)',
+            color: heatmapEnabled ? '#000' : '#fff',
+            border: heatmapEnabled ? '1px solid #FF5A2E' : '1px solid #2a2a2e'
+          }}
+        >
+          {heatmapEnabled ? 'Heatmap: ON' : 'Heatmap: OFF'}
+        </button>
       </div>
       <ScorePanel result={result} isSample={!result} />
     </div>
