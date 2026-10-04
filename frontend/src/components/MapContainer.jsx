@@ -50,7 +50,10 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
         paint: {
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 15, 5],
           'circle-color': '#FF5A2E',
-          'circle-opacity': 0.8,
+          'circle-opacity': [
+            'step', ['get', 'departures_per_hour'],
+            0.1, 2, 0.22, 4, 0.34, 6, 0.46, 10, 0.58,
+          ],
         },
       })
 
