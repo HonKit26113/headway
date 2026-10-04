@@ -78,7 +78,7 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="absolute top-6 left-6 right-6 z-10">
+    <form onSubmit={handleSubmit} className="absolute top-6 left-6 right-6 z-20">
       <div className="relative">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -121,7 +121,7 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
 
         {open && suggestions.length > 0 && (
           <div
-            className="absolute top-full mt-2 left-0 right-[88px] rounded-xl overflow-hidden"
+            className="absolute top-full mt-2 left-0 right-[88px] z-20 rounded-xl overflow-hidden"
             style={{ background: 'rgba(11,11,12,0.97)', border: '1px solid #2a2a2e' }}
           >
             {suggestions.map((s, i) => (
