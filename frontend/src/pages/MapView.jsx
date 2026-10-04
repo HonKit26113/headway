@@ -22,7 +22,7 @@ export default function MapView() {
         {/* Heatmap Toggle */}
         <button
           onClick={() => setHeatmapEnabled(!heatmapEnabled)}
-          className="absolute bottom-10 left-6 z-10 px-5 py-2.5 rounded-full font-medium transition-colors"
+          className="absolute bottom-6 right-6 z-10 px-5 py-2.5 rounded-full font-medium transition-colors"
           style={{
             background: heatmapEnabled ? '#FF5A2E' : 'rgba(11,11,12,0.92)',
             color: heatmapEnabled ? '#000' : '#fff',
