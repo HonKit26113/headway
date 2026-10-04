@@ -33,7 +33,6 @@ Scope was tight for a 24-hour build, so a few things are rough edges rather than
 
 - **Heatmap** uses a server-computed score grid (no H3 — it fails to build on Windows via CMake, so we avoided it entirely) rather than the originally planned hex-grid approach. Water is excluded using a "is there a real transit stop within 1.5km" heuristic instead of a land-mask dataset (the first version used `global_land_mask`, which OOM-killed the backend on Railway's free tier — swapped for a zero-memory-footprint check reusing data already in memory). Very remote land with no nearby stops at all will read as excluded too, which is an acceptable trade for actually working in production.
 - **Geocoding** is bounded to Metro Vancouver by design — addresses outside the region correctly return "not found" rather than a wrong answer.
-- Full reasoning and the scope-cut log: [`headway-claude.md`](headway-claude.md).
 
 ---
 
@@ -85,13 +84,6 @@ Full interactive docs at `/docs` once the backend is running (FastAPI auto-gener
 
 ---
 
-## Roles
+## Team
 
 ![The Headway team](docs/team-screenshot.png)
-
-- **BE1:** Scoring & geospatial logic
-- **BE2:** GTFS data pipeline
-- **FE:** Map UI & React components
-- **GEN:** Landing page, QA, demo
-
-See [`headway-claude.md`](headway-claude.md) for the full project spec.
