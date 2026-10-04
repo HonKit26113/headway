@@ -29,6 +29,7 @@ export default function MapView() {
         <SearchBar
           ref={searchBarRef}
           campus={campus}
+          pin={pin}
           onResult={setResult}
           onLocationSelect={setPin}
           onLoadingChange={setLoading}
