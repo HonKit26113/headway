@@ -10,12 +10,18 @@ export default function MapView() {
   const [result, setResult] = useState(null)
   const [pin, setPin] = useState(null)
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   return (
     <div className="flex h-screen bg-black">
       <div className="flex-1 relative">
         <MapContainer campus={campus} pin={pin} heatmapEnabled={heatmapEnabled} />
-        <SearchBar campus={campus} onResult={setResult} onLocationSelect={setPin} />
+        <SearchBar
+          campus={campus}
+          onResult={setResult}
+          onLocationSelect={setPin}
+          onLoadingChange={setLoading}
+        />
         <CampusPicker campus={campus} onChange={setCampus} />
         <div className="absolute bottom-6 left-6 z-10 flex items-center gap-4">
           <Legend />
@@ -34,7 +40,7 @@ export default function MapView() {
           </button>
         </div>
       </div>
-      <ScorePanel result={result} isSample={!result} />
+      <ScorePanel result={result} isSample={!result} loading={loading} />
     </div>
   )
 }

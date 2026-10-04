@@ -12,3 +12,4 @@ class Factor(BaseModel):
 class ScoreResponse(BaseModel):
     score: float
     factors: list[Factor]
+    summary: str | None = None

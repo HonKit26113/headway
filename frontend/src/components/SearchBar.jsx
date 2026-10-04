@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { fetchScore, ScoreApiError } from '../lib/api'
 import { useGeocode } from '../hooks/useGeocode'
 
-export default function SearchBar({ campus, onResult, onLocationSelect }) {
+export default function SearchBar({ campus, onResult, onLocationSelect, onLoadingChange }) {
   const [address, setAddress] = useState('')
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(-1)
@@ -13,9 +13,14 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
 
   const suggestions = useGeocode(open ? address : '')
 
+  const updateLoading = (val) => {
+    setLoading(val)
+    onLoadingChange?.(val)
+  }
+
   const runScore = async (addressText, location) => {
     const thisRequest = ++requestIdRef.current
-    setLoading(true)
+    updateLoading(true)
     setError(null)
     onResult(null) // clear any previous result so stale data can't linger on failure
     if (location) onLocationSelect?.(location)
@@ -32,7 +37,7 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
         setError('Could not reach the scoring service. Try again in a moment.')
       }
     } finally {
-      if (thisRequest === requestIdRef.current) setLoading(false)
+      if (thisRequest === requestIdRef.current) updateLoading(false)
     }
   }
 
@@ -72,7 +77,7 @@ export default function SearchBar({ campus, onResult, onLocationSelect }) {
     setOpen(false)
     setHighlighted(-1)
     setError(null)
-    setLoading(false)
+    updateLoading(false)
     onResult(null)
     onLocationSelect?.(null)
   }
