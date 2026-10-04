@@ -28,5 +28,6 @@ Thumbs.db
 
 # BE2
 backend/.venv/
-backend/data/raw/
+backend/data/raw/*
+!backend/data/raw/google_transit.zip
 backend/.pytest_cache/
