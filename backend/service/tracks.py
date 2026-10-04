@@ -23,7 +23,7 @@ GTFS_ZIP = Path(os.environ.get("GTFS_ZIP", "data/raw/google_transit.zip"))
 
 # Lines that run on their own track/water, not on roads. Labels are route_short_name,
 # or route_long_name when there is no short name (same as the rest of the app).
-RAIL_LINES = {"Expo Line", "Millennium Line", "Canada Line", "West Coast Express", "SeaBus"}
+RAIL_LINES = {"Expo Line", "Millennium Line", "Canada Line", "WCE", "SeaBus"}
 
 MAX_STOP_TO_TRACK_M = 150  # a stop farther than this from a shape isn't on that shape
 MAX_DETOUR = 3.0           # reject a cut that is >3x the straight line between the two stops

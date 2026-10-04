@@ -1,9 +1,9 @@
-import { useState, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react'
 import { fetchScore, fetchSummary, ScoreApiError } from '../lib/api'
 import { useGeocode } from '../hooks/useGeocode'
 
 const SearchBar = forwardRef(function SearchBar(
-  { campus, onResult, onLocationSelect, onLoadingChange, onSummaryLoadingChange },
+  { campus, pin, onResult, onLocationSelect, onLoadingChange, onSummaryLoadingChange },
   ref
 ) {
   const [address, setAddress] = useState('')
@@ -21,7 +21,7 @@ const SearchBar = forwardRef(function SearchBar(
     onLoadingChange?.(val)
   }
 
-  const runScore = async (addressText, location) => {
+  const runScore = async (addressText, location, currentCampus) => {
     const thisRequest = ++requestIdRef.current
     updateLoading(true)
     setError(null)
@@ -32,7 +32,7 @@ const SearchBar = forwardRef(function SearchBar(
     try {
       data = await fetchScore(
         addressText,
-        campus,
+        currentCampus,
         location ? location.lat : undefined,
         location ? location.lon : undefined
       )
@@ -53,18 +53,27 @@ const SearchBar = forwardRef(function SearchBar(
     updateLoading(false)
 
     onSummaryLoadingChange?.(true)
-    const summary = await fetchSummary(data.score, data.factors, campus)
+    const summary = await fetchSummary(data.score, data.factors, currentCampus)
     if (thisRequest === requestIdRef.current) {
       onResult({ ...data, address: addressText, isSample: false, summary })
       onSummaryLoadingChange?.(false)
     }
   }
 
+  // Auto-recompute when campus changes, if there's already an active search
+  useEffect(() => {
+    // If there's an address in the search bar and we are not currently searching for a new one (open)
+    if (address && !open) {
+      // pin is available from MapView.jsx
+      runScore(address, pin, campus)
+    }
+  }, [campus])
+
   const handleSelect = (suggestion) => {
     setAddress(suggestion.label)
     setOpen(false)
     setHighlighted(-1)
-    runScore(suggestion.label, { lat: suggestion.lat, lon: suggestion.lon })
+    runScore(suggestion.label, { lat: suggestion.lat, lon: suggestion.lon }, campus)
   }
 
   useImperativeHandle(ref, () => ({
@@ -75,7 +84,7 @@ const SearchBar = forwardRef(function SearchBar(
     e.preventDefault()
     if (!address.trim() || loading) return
     setOpen(false)
-    runScore(address, null)
+    runScore(address, null, campus)
   }
 
   const handleKeyDown = (e) => {
