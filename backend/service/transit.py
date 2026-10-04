@@ -102,11 +102,17 @@ def _parse_commute(raw) -> dict[str, dict]:
     out = {}
     for sid, m in raw.items():
         if isinstance(m, dict):
-            out[str(sid)] = {"minutes": _finite(m["minutes"]), "routes": [str(r) for r in m.get("routes", [])]}
+            entry = {
+                "minutes": _finite(m["minutes"]),
+                "routes": [str(r) for r in m.get("routes", [])],
+            }
+            if "legs" in m:
+                entry["legs"] = m["legs"]
+            out[str(sid)] = entry
         else:
             out[str(sid)] = {"minutes": _finite(m), "routes": []}
             
-    if any(m["minutes"] < 0 for m in out.values()):
+    if any(e["minutes"] < 0 for e in out.values()):
         raise ValueError("negative commute")
     return out
 
@@ -214,6 +220,21 @@ def commute_minutes(stop_id: str, campus: str) -> float | None:
     km = float(_haversine_m(stop.lat, stop.lon, lat0, lon0)) / 1000
     return round(km / FALLBACK_KMH * 60, 1)
 
+
+
+def commute_legs(stop_id: str, campus: str) -> list[dict] | None:
+    """Ride/walk legs with stop ids, or None if unknown, unreachable, or in fallback mode."""
+    s = _current()
+    if s.fallback:
+        return None
+    entry = s.commute.get(campus, {}).get(stop_id)
+    return entry.get("legs") if isinstance(entry, dict) else None
+
+
+def stop_latlon(stop_id: str) -> tuple[float, float] | None:
+    stop = _current().stops.get(stop_id)
+    return (stop.lat, stop.lon) if stop else None
+    
 
 def commute_routes(stop_id: str, campus: str) -> list[str] | None:
     """Lines to take from stop to campus, in order, e.g. ["Expo Line", "145"].

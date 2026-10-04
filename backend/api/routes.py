@@ -33,3 +33,8 @@ async def health():
 async def heatmap(campus: str):
     from service.heatmap import generate_heatmap_geojson
     return generate_heatmap_geojson(campus)
+
+@router.get("/route")
+async def route(lat: float, lon: float, campus: str):
+    from service.routing import build_route_geojson
+    return build_route_geojson((lat, lon), campus)
