@@ -4,7 +4,7 @@ Search an address. Know the transit.
 
 A neighbourhood transit scorer for students hunting off-campus housing. Get a 0-10 score based on commute time, bus frequency, late-night service, and walk distance to campus — backed by real TransLink GTFS data, not estimates.
 
-![Landing page preview](docs/landing-preview.png)
+![Headway scoring a real address, with the route and factor breakdown](docs/route-screenshot.png)
 
 **Live:** [headway-frontend-production.up.railway.app](https://headway-frontend-production.up.railway.app) — backend API at [headway-backend-production-582c.up.railway.app](https://headway-backend-production-582c.up.railway.app/docs)
 
