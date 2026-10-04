@@ -6,6 +6,8 @@ A neighbourhood transit scorer for students hunting off-campus housing. Get a 0-
 
 ![Headway scoring a real address, with the route and factor breakdown](docs/route-screenshot.png)
 
+That's a real search, not a mockup: an address on Northbound Canada Way scores **6.7/10** for a commute to SFU. The score isn't just "50 minutes = bad" — it's a weighted blend of the four factors shown in the panel. A 2-minute walk to the nearest stop and buses every 10–12 minutes both pull the score up; the 50-minute ride itself pulls it down. Headway shows that breakdown instead of hiding it behind one number, so you can see *why* it scored 6.7, not just that it did — including the actual bus routes (123 → 144) and a plain-English verdict summarizing the trade-off.
+
 **Live:** [www.headwayhome.tech](https://www.headwayhome.tech/app) (custom domain) · also at [headway-frontend-production.up.railway.app](https://headway-frontend-production.up.railway.app/app) — backend API at [headway-backend-production-582c.up.railway.app/docs](https://headway-backend-production-582c.up.railway.app/docs)
 
 ---
