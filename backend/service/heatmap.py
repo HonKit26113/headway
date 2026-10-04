@@ -81,7 +81,7 @@ def generate_heatmap_geojson(
     lat_max: float = 49.38,
     lon_min: float = -123.50,
     lon_max: float = -122.30,
-    lat_step: float = 0.01,
+    lat_step: float = 0.02,
     score_min: float | None = None,   # set both to fix the scale (e.g. 0 and 10)
     score_max: float | None = None,
     fill_unreachable: bool = True,    # also fill land cells with no route to campus
