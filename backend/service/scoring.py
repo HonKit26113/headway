@@ -51,7 +51,10 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     )
 
     # Safely format values for the UI (handle inf and None when no route is found)
-    commute_str = "N/A" if math.isinf(shortest_time_to_dest) else f"{round(shortest_time_to_dest)} min"
+    commute_num = shortest_time_to_dest
+    if not math.isinf(shortest_time_to_dest):
+        commute_num = round(shortest_time_to_dest)
+    commute_str = "N/A" if math.isinf(shortest_time_to_dest) else f"{commute_num} min"
     avg_headway_str = "N/A" if avg_headway is None else f"every {int(avg_headway)} min"
     best_headway_str = "N/A" if best_headway == "---" else f"every {int(best_headway)} min"
     walk_str = "N/A" if math.isinf(shortest_walk_min) else f"{int(shortest_walk_min)} min"
@@ -62,8 +65,14 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     else:
         shortest_route = "N/A"
 
+    if math.isinf(shortest_time_to_dest):
+        commute_time_summary = ""
+    else:
+        commute_time_summary = f"You'll spend {commute_num * 2 * 5} minutes commuting per week. That's {round(commute_num * 2 * 5 * 20 / 60, 1)} hours per month!"
+
     factors = [
         Factor(label="Commute to campus", value=commute_str, percent=int(commute_score * 10)),
+        Factor(label="", value=commute_time_summary, percent=0),
         Factor(label="Most direct route", value=shortest_route, percent=0),
         Factor(label="Average frequency", value=avg_headway_str, percent=int(frequency_score * 10)),
         Factor(label="Peak frequency", value=best_headway_str, percent=0),
