@@ -3,7 +3,7 @@ const SWATCH_OPACITIES = [0.1, 0.22, 0.34, 0.46, 0.58]
 export default function Legend() {
   return (
     <div
-      className="absolute bottom-6 left-6 rounded-xl px-4 py-3.5 flex flex-col gap-2.5"
+      className="rounded-xl px-4 py-3.5 flex flex-col gap-2.5"
       style={{ background: 'rgba(11,11,12,0.92)', border: '1px solid #2a2a2e' }}
     >
       <span
