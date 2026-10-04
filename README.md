@@ -23,9 +23,7 @@ Housing choice is one of the biggest levers on a student's carbon footprint — 
 
 This is a direct fit for **UN Sustainable Development Goal 11** (Sustainable Cities and Communities) — specifically target 11.2, access to safe, affordable, and sustainable transport systems. Every search is a small nudge toward transit-first housing decisions instead of car-first ones, and that compounds across however many students end up using it before signing a lease.
 
-We also didn't want a tool that only tells people what they want to hear. The example below is a real address near SFU. It scores **5.9/10** — not because it's badly located (19-minute commute, a 2-minute walk to the nearest stop) but because service there only runs every 28–29 minutes. Headway says so plainly: *"It is a quick walk to the bus and a fast ride, but buses run too infrequently."* That kind of specific, honest feedback is what makes the score trustworthy instead of just another marketing number — and it's the same kind of address-level detail that could back up a real conversation with TransLink about where student-heavy neighbourhoods are actually underserved.
-
-![Real address scoring with route and frequency gap](docs/route-screenshot.png)
+We also didn't want a tool that only tells people what they want to hear. One real address near SFU scores **5.9/10** — not because it's badly located (19-minute commute, a 2-minute walk to the nearest stop) but because service there only runs every 28–29 minutes. Headway says so plainly: *"It is a quick walk to the bus and a fast ride, but buses run too infrequently."* That kind of specific, honest feedback is what makes the score trustworthy instead of just another marketing number — and it's the same kind of address-level detail that could back up a real conversation with TransLink about where student-heavy neighbourhoods are actually underserved.
 
 ## Known Limitations
 
@@ -86,6 +84,8 @@ Full interactive docs at `/docs` once the backend is running (FastAPI auto-gener
 ---
 
 ## Roles
+
+![The Headway team](docs/team-screenshot.png)
 
 - **BE1:** Scoring & geospatial logic
 - **BE2:** GTFS data pipeline
