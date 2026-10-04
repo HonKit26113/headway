@@ -40,7 +40,7 @@ def get_line_color(line: str) -> str:
         return "#4c2d7a"
     elif line == "SeaBus":
         return "#746661"
-    elif line == "99":
+    elif line == "099":
         return "#ff7322"
     elif line.startswith("R") and line[1:].isdigit():
         return "#008522"  # RapidBus Green
@@ -138,7 +138,7 @@ def build_route_geojson(origin: tuple, campus: str) -> dict:
                 rail = name in RAIL_LINES
                 specs.append(_spec(
                     "ride", coords, line=name, color=color,
-                    costing=None if rail else "pedestrian",
+                    costing=None if rail else "bus",
                     path=track_path(name, coords[0], coords[-1]) if rail else None,
                 ))
             else:  # walk transfer
