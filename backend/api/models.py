@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class ScoreRequest(BaseModel):
-    address: str
+    address: str = Field(max_length=200)
     campus: str
 
 class Factor(BaseModel):

@@ -83,7 +83,7 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
         const feature = e.features[0]
         popup
           .setLngLat(feature.geometry.coordinates)
-          .setHTML(`<div style="font-family: Geist, sans-serif; font-size: 13px;">${feature.properties.name}</div>`)
+          .setHTML(`<div style="font-family: Geist, sans-serif; color: rgb(0,0,0); font-size: 13px;">${feature.properties.name}</div>`)
           .addTo(map)
       })
       map.on('mouseleave', 'stops-layer', () => {

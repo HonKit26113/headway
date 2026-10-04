@@ -5,7 +5,7 @@ from service.geocoding import geocode
 
 router = APIRouter(prefix="/api")
 
-@router.post("/score")
+# @router.post("/score")
 async def score(req: ScoreRequest) -> ScoreResponse:
     try:
         location = geocode(req.address)
@@ -20,11 +20,11 @@ async def score(req: ScoreRequest) -> ScoreResponse:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/health")
+# @router.get("/health")
 async def health():
     return {"status": "ok"}
 
-@router.get("/heatmap")
+# @router.get("/heatmap")
 async def heatmap(campus: str):
     from service.heatmap import generate_heatmap_geojson
     return generate_heatmap_geojson(campus)
