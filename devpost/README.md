@@ -6,6 +6,8 @@
 
 Every student housing search comes down to the same blind trade-off: cheaper rent usually means a worse commute, but nobody finds out *how much* worse until they've already signed the lease and missed their first 8:30am class because the bus only comes every 30 minutes. Distance-to-campus on a map doesn't tell you that. A walk score doesn't tell you that. We wanted one honest number that does — built from the actual transit schedule, not a straight-line guess.
 
+Housing choice is also one of the biggest, least-examined levers on a student's carbon footprint — and it's almost always decided before anyone thinks about transit at all. A cheaper apartment a few blocks from an infrequent bus quietly locks someone into years of driving or ride-hailing; a slightly pricier one two minutes from a frequent line doesn't. That's a direct fit for **UN Sustainable Development Goal 11** (Sustainable Cities and Communities) — specifically target 11.2, access to safe, affordable, sustainable transport systems. Every search is a small nudge toward transit-first housing decisions instead of car-first ones, multiplied across however many students use it before signing a lease.
+
 ## What it does
 
 Search an address, or click any real bus stop on the map, and Headway scores it 0–10 for how well transit gets you to campus — then shows the route itself, drawn out: colored bus segments, dashed walking segments, and a plain-language verdict explaining *why* it scored that way (e.g. *"Frequent service right at your doorstep makes up for the longer 47-minute ride"*).
@@ -41,7 +43,7 @@ Four people split cleanly along the data pipeline: GTFS ingestion and the transi
 - Every number on screen comes from real data: real TransLink GTFS stops and schedules, real geocoding, real computed routes — nothing is mocked in the shipped product.
 - The heatmap works without H3, which was supposed to be the hard, cuttable part.
 - Zero unresolved merge conflicts across the whole build, despite heavy overlap on the same handful of files.
-- A scoring tool that's willing to give an honest 5.9/10 and explain exactly why, instead of only ever telling you what you want to hear.
+- A scoring tool that's willing to give an honest 5.9/10 and explain exactly why, instead of only ever telling you what you want to hear — that kind of address-level detail is also exactly what could back up a real conversation with TransLink about where student-heavy neighbourhoods are underserved.
 
 ## What we learned
 
