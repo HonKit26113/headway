@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-3.8-flash:generateContent"
+    "gemini-flash-lite-latest:generateContent"
 )
 TIMEOUT_S = 20
 
@@ -34,10 +34,7 @@ def generate_summary(score: float, factors: list, campus: str) -> str | None:
             params={"key": config.GEMINI_API_KEY},
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "thinkingConfig": {"thinkingBudget": 0},
-                    "maxOutputTokens": 100,
-                },
+                "generationConfig": {"maxOutputTokens": 200},
             },
             timeout=TIMEOUT_S,
         )

@@ -42,5 +42,4 @@ Each factor is shown separately, not just buried in the final score, so you can 
 
 - Cedric H. — CS, UBC
 - Herman L. — CS, UBC
-- Daniel L. — CS, UBC
 - Olisaemeka A. — DS + CS, SFU
