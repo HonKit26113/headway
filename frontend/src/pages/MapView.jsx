@@ -16,6 +16,7 @@ export default function MapView() {
       <div className="flex-1 relative">
         <MapContainer campus={campus} pin={pin} heatmapEnabled={heatmapEnabled} />
         <SearchBar campus={campus} onResult={setResult} onLocationSelect={setPin} />
+        <CampusPicker campus={campus} onChange={setCampus} />
         <div className="absolute bottom-6 left-6 z-10 flex items-center gap-4">
           <Legend />
           
