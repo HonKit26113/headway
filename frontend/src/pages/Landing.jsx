@@ -4,7 +4,6 @@ import Navbar from '../components/Navbar'
 const TEAM = [
   { name: 'Cedric H.', study: 'CS, UBC' },
   { name: 'Herman L.', study: 'CS, UBC' },
-  { name: 'Daniel L.', study: 'CS, UBC' },
   { name: 'Olisaemeka A.', study: 'DS + CS, SFU' },
 ]
 
