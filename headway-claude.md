@@ -30,7 +30,7 @@
 
 | Role | What You Build | Section | Time | Commits |
 |------|---|---|---|---|
-| **BE1** (Scoring / Geospatial) | Weighted scoring, ~~H3 heatmap~~, `/api/score`, ~~`/api/heatmap`~~ (cut) | [Backend: Scoring & Heatmap](#backend-scoring--heatmap) | ~14h | 8–12 |
+| **BE1** (Scoring / Geospatial) | Weighted scoring, H3 heatmap, `/api/score`, `/api/heatmap` | [Backend: Scoring & Heatmap](#backend-scoring--heatmap) | ~14h | 8–12 |
 | **BE2** (GTFS / Data) | Load TransLink GTFS, parse routes, calculate frequency, geocode | [Backend: GTFS & Data](#backend-gtfs--data) | ~11h | 6–10 |
 | **FE** (Map UI) | MapLibre map, search bar, score panel, campus picker, Tailwind styling | [Frontend: Map & UI](#frontend-map--ui) | ~13h | 10–15 |
 | **GEN** (Landing / QA) | Landing page, demo video, Devpost, scope cuts, QA testing | [Frontend: Landing & Demo](#frontend-landing--demo) | 5h code + 19h management | 3–5 |

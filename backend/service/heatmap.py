@@ -78,8 +78,8 @@ def _fill_empty(grid: np.ndarray, fillable: np.ndarray) -> np.ndarray:
 def generate_heatmap_geojson(
     campus: str,
     lat_min: float = 49.00,
-    lat_max: float = 49.45,
-    lon_min: float = -123.30,
+    lat_max: float = 49.38,
+    lon_min: float = -123.50,
     lon_max: float = -122.30,
     lat_step: float = 0.01,
     score_min: float | None = None,   # set both to fix the scale (e.g. 0 and 10)
