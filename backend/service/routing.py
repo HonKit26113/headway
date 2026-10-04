@@ -36,7 +36,7 @@ def get_line_color(line: str) -> str:
         return "#ffcd00"
     elif line == "Canada Line":
         return "#007c9f"
-    elif line == "West Coast Express":
+    elif line == "WCE":
         return "#4c2d7a"
     elif line == "SeaBus":
         return "#746661"
