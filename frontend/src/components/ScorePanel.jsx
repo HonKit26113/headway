@@ -8,6 +8,7 @@ const MOCK_RESULT = {
     { label: 'Last trip home', value: '1:15 am' },
     { label: 'Walk to nearest stop', value: '5 min' },
   ],
+  summary: 'A fast commute and frequent buses make this a strong pick, with late-night service covering you after class.',
 }
 
 export default function ScorePanel({ result, isSample = true }) {
@@ -69,6 +70,12 @@ export default function ScorePanel({ result, isSample = true }) {
           </div>
         ))}
       </div>
+
+      {data.summary && (
+        <p style={{ fontFamily: 'Geist', fontWeight: 400, fontSize: '14px', lineHeight: '21px', color: '#a9a69f' }}>
+          {data.summary}
+        </p>
+      )}
     </aside>
   )
 }

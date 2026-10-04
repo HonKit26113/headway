@@ -16,9 +16,13 @@ async def score(req: ScoreRequest) -> ScoreResponse:
         raise HTTPException(status_code=400, detail="Address not found")
 
     try:
-        return compute_score((location.lat, location.lon), req.campus)
+        result = compute_score((location.lat, location.lon), req.campus)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    from service.summary import generate_summary
+    result.summary = generate_summary(result.score, result.factors, req.campus)
+    return result
 
 # @router.get("/health")
 async def health():
