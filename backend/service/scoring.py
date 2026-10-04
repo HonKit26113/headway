@@ -38,9 +38,9 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
     latenight_score = get_latenight_score(last_departure)
     walk_score = get_walk_score(shortest_walk_min)
 
-    if best_headway is math.inf:
+    if best_headway == "---" or (isinstance(best_headway, float) and math.isinf(best_headway)):
         best_headway = "---"
-        
+
     final_score = (
         commute_score * 0.3 +     
         frequency_score * 0.3 +      
@@ -48,12 +48,18 @@ def compute_score(origin: tuple, campus: str) -> ScoreResponse:
         walk_score * 0.2  
     )
 
+    # Safely format values for the UI (handle inf and None when no route is found)
+    commute_str = "N/A" if math.isinf(shortest_time_to_dest) else f"{round(shortest_time_to_dest)} min"
+    avg_headway_str = "N/A" if avg_headway is None else f"every {int(avg_headway)} min"
+    best_headway_str = "N/A" if best_headway == "---" else f"every {int(best_headway)} min"
+    walk_str = "N/A" if math.isinf(shortest_walk_min) else f"{int(shortest_walk_min)} min"
+    
     factors = [
-        Factor(label="Commute to campus", value=f"{int(shortest_time_to_dest)} min", percent=int(commute_score * 10)),
-        Factor(label="Average frequency", value=f"every {int(avg_headway)} min", percent=int(frequency_score * 10)),
-        Factor(label="Peak frequency", value=f"every {int(best_headway)} min", percent=0),
+        Factor(label="Commute to campus", value=commute_str, percent=int(commute_score * 10)),
+        Factor(label="Average frequency", value=avg_headway_str, percent=int(frequency_score * 10)),
+        Factor(label="Peak frequency", value=best_headway_str, percent=0),
         Factor(label="Last trip home", value=f"until {int((last_departure // 60) % 24):02d}:{int(last_departure % 60):02d}", percent=int(latenight_score * 10)),
-        Factor(label="Walk to nearest stop", value=f"{int(shortest_walk_min)} min", percent=int(walk_score * 10)),
+        Factor(label="Walk to nearest stop", value=walk_str, percent=int(walk_score * 10)),
     ]
 
     return ScoreResponse(score=round(final_score, 1), factors=factors)

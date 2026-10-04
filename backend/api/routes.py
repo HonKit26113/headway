@@ -23,3 +23,8 @@ async def score(req: ScoreRequest) -> ScoreResponse:
 @router.get("/health")
 async def health():
     return {"status": "ok"}
+
+@router.get("/heatmap")
+async def heatmap(campus: str):
+    from service.heatmap import generate_heatmap_geojson
+    return generate_heatmap_geojson(campus)
