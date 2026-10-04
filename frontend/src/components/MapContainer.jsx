@@ -154,6 +154,28 @@ export default function MapContainer({ campus = 'sfu', pin = null, heatmapEnable
         popup.remove()
       })
 
+      // Permanent campus badges - always visible, not tied to search/selection state
+      Object.values(CAMPUS_COORDS).forEach(({ lat, lon, label, brandColor }) => {
+        const el = document.createElement('div')
+        el.style.width = '36px'
+        el.style.height = '36px'
+        el.style.borderRadius = '50%'
+        el.style.background = brandColor
+        el.style.border = '2px solid #edebe6'
+        el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.5)'
+        el.style.display = 'flex'
+        el.style.alignItems = 'center'
+        el.style.justifyContent = 'center'
+        el.style.fontFamily = 'Geist, sans-serif'
+        el.style.fontWeight = '700'
+        el.style.fontSize = label.length > 3 ? '9px' : '10px'
+        el.style.color = '#ffffff'
+        el.textContent = label
+        new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([lon, lat])
+          .addTo(map)
+      })
+
       setMapReady(true) // Layers exist now; effects that depend on them can run
     })
 
