@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { CAMPUS_COORDS } from '../lib/campuses'
 
-const API = 'http://127.0.0.1:8000'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 // Esri's free dark basemap - no API key needed. Matches the dark map
 // preview used on the landing page's About section.
